@@ -7,6 +7,9 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.SystemClock;
@@ -30,7 +33,6 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
     private static final long WEATHER_EVERY_MS = 30 * 60 * 1000;
 
     private final Handler handler = new Handler();
-    private final RadioClient radio = new RadioClient();
     private NowPlaying nowPlaying;
 
     private TextView greeting, weatherTemp, weatherDesc, weatherCity, weatherExtra;
@@ -48,9 +50,19 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
     private GradientDrawable oilBg;
     private long lastWeatherFetch;
 
-    private TextView fmBand, fmFreq, fmUnit;
     private ImageView art, playBtn;
     private TextView songSource, songTitle, songArtist;
+    private LinearLayout musicApps;
+    private ImageView sourceIcon;
+    private LinearLayout progressRow;
+    private LevelBar progress;
+    private TextView progressTime;
+
+    private static final long GPS_STALE_MS = 5000;
+    private SpeedView speedView;
+    private MapView map;
+    private Location lastGps;
+    private long lastGpsAt = -GPS_STALE_MS;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -67,16 +79,15 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         LinearLayout middle = new LinearLayout(this);
         middle.setOrientation(LinearLayout.VERTICAL);
         middle.addView(buildClockCard(), vweight(0.62f, 0));
-        middle.addView(buildFmCard(), vweight(1.38f, dp(12)));
+        middle.addView(buildMusicCard(), vweight(1.38f, dp(12)));
         cards.addView(middle, weight(1f, dp(12)));
 
-        cards.addView(buildMusicCard(), weight(1.05f, dp(12)));
+        cards.addView(buildMapCard(), weight(1.05f, dp(12)));
         root.addView(cards, new LinearLayout.LayoutParams(-1, 0, 1f));
 
         root.addView(buildDock(), new LinearLayout.LayoutParams(-1, dp(84)));
         setContentView(root);
 
-        radio.bind(this);
         nowPlaying = NowPlaying.get(this);
         createdDark = Ui.isDark(this);
         createdProfile = profileStamp();
@@ -85,8 +96,11 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
             startActivity(new Intent(this, SetupActivity.class));
         }
         if (Profile.isNwd(this)) startService(new Intent(this, VolumeOverlay.class));
-        startService(new Intent(this, GreeterService.class));
+        // Greet when the launcher opens (not when it is only recreated for a theme change).
+        startService(new Intent(this, GreeterService.class)
+                .putExtra(GreeterService.EXTRA_GREET_NOW, savedInstanceState == null));
         startService(new Intent(this, Odometer.class));
+        if (savedInstanceState == null) SplashActivity.show(this);
     }
 
     // ---------- Greeting + weather ----------
@@ -96,16 +110,16 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(26), dp(24), dp(26), dp(22));
         weatherBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                Ui.pick(this, new int[]{0x993FA9FF, 0x667B4DFF}, new int[]{0xFF1E1E28, 0xFF121218}));
+                Ui.pick(this, new int[]{0x993FA9FF, 0x667B4DFF}, new int[]{Ui.ACCENT_DEEP, Ui.PANEL}));
         weatherBg.setCornerRadius(dp(18));
         weatherBg.setStroke(dp(1), 0x447FD8FF);
         card.setBackground(weatherBg);
 
-        TextView hello = left(Ui.text(this, Profile.hello(this), 34, Color.WHITE));
+        TextView hello = left(Ui.text(this, Profile.welcome(this), 34, Color.WHITE));
         hello.setTypeface(Typeface.DEFAULT_BOLD);
         card.addView(hello);
 
-        greeting = left(Ui.text(this, "", 17, 0xCCFFFFFF));
+        greeting = left(Ui.text(this, "", 19, 0xCCFFFFFF));
         greeting.setPadding(0, dp(4), 0, 0);
         card.addView(greeting);
 
@@ -134,9 +148,27 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         carBox.addView(car, new FrameLayout.LayoutParams(-1, -1));
         carBox.addView(carLights, new FrameLayout.LayoutParams(-1, -1));
         carBox.setOnClickListener(v -> startActivity(new Intent(this, SetupActivity.class)));
-        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-1, 0, 1f);
-        clp.setMargins(dp(30), dp(8), dp(30), dp(8));
-        card.addView(carBox, clp);
+        // Speedometer above the car, fed by the GPS.
+        speedView = new SpeedView(this);
+        speedView.setOnClickListener(v -> fixGps());
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-1, dp(116));
+        slp.topMargin = dp(2);
+        card.addView(speedView, slp);
+
+        // Car + model name as one group in the space between speedometer and weather.
+        FrameLayout carArea = new FrameLayout(this);
+        carArea.addView(carBox, new FrameLayout.LayoutParams(0, 0));
+
+        // Model name under the car, spaced out like the badge on the tailgate.
+        TextView model = Ui.text(this, Profile.MODEL, 15, 0xE6FFFFFF);
+        model.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        model.setLetterSpacing(0.6f);
+        model.setShadowLayer(dp(8), 0, 0, 0x991E90FF);
+        carArea.addView(model, new FrameLayout.LayoutParams(-1, -2));
+        carArea.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            if (r - l != or - ol || b - t != ob - ot) carArea.post(() -> placeCar(carArea, carBox, model));
+        });
+        card.addView(carArea, new LinearLayout.LayoutParams(-1, 0, 1f));
 
         // Compact weather row: icon + temperature + description, leaving room for the car.
         LinearLayout now = new LinearLayout(this);
@@ -178,10 +210,37 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         return card;
     }
 
+    /**
+     * Sizes the car as large as fits (nearly the card width) and places it with the model name
+     * just below, a little above the middle: less space under the speedometer than over the weather.
+     */
+    private void placeCar(FrameLayout area, View carBox, TextView model) {
+        int w = area.getWidth(), h = area.getHeight();
+        if (w == 0 || h == 0) return;
+        android.graphics.drawable.Drawable d = car.getDrawable();
+        float ratio = d != null && d.getIntrinsicWidth() > 0
+                ? d.getIntrinsicHeight() / (float) d.getIntrinsicWidth() : 0.56f;
+        model.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        int mh = model.getMeasuredHeight(), gap = dp(2);
+        int cw = w - dp(12) * 2, ch = Math.round(cw * ratio);
+        int max = Math.round((h - mh - gap) * 0.92f);
+        if (ch > max) {
+            ch = max;
+            cw = Math.round(ch / ratio);
+        }
+        int top = Math.round((h - ch - mh - gap) * 0.35f);
+        FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(cw, ch, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        clp.topMargin = top;
+        carBox.setLayoutParams(clp);
+        FrameLayout.LayoutParams mlp = new FrameLayout.LayoutParams(-1, -2, Gravity.TOP);
+        mlp.topMargin = top + ch + gap;
+        model.setLayoutParams(mlp);
+    }
+
     private void updateGreeting() {
         int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
-        greeting.setText((h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches")
-                + " · Bienvenido");
+        greeting.setText(h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches");
     }
 
     private void showWeather(Weather w) {
@@ -194,7 +253,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         weatherCity.setText(w.city.isEmpty() ? "Sensación " + w.feelsLike + "°"
                 : w.city + " · Sensación " + w.feelsLike + "°");
         weatherExtra.setText("↑ " + w.max + "°   ↓ " + w.min + "°   💧 " + w.humidity + "%   " + w.wind + " km/h");
-        weatherBg.setColors(Ui.isDark(this) ? new int[]{0xFF1E1E28, 0xFF121218}
+        weatherBg.setColors(Ui.isDark(this) ? new int[]{Ui.ACCENT_DEEP, Ui.PANEL}
                 : w.isDay ? new int[]{0x993FA9FF, 0x667B4DFF} : new int[]{0x8C2A3A9E, 0x80261A6E});
     }
 
@@ -261,7 +320,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         TextClock time = new TextClock(this);
         time.setFormat24Hour("HH:mm");
         time.setFormat12Hour("hh:mm");
-        time.setTextSize(40);
+        time.setTextSize(54);
         time.setTextColor(Color.WHITE);
         time.setTypeface(Typeface.DEFAULT_BOLD);
         time.setIncludeFontPadding(false);
@@ -271,7 +330,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         TextClock date = new TextClock(this);
         date.setFormat24Hour("EEEE, d 'de' MMMM");
         date.setFormat12Hour("EEEE, d 'de' MMMM");
-        date.setTextSize(14);
+        date.setTextSize(16);
         date.setTextColor(0xCCFFFFFF);
         date.setPadding(0, dp(6), 0, 0);
         date.setGravity(Gravity.CENTER);
@@ -294,81 +353,13 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         return card;
     }
 
-    // ---------- FM ----------
-
-    private View buildFmCard() {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.VERTICAL);
-        card.setGravity(Gravity.CENTER);
-        card.setBackground(Ui.card(this));
-
-        LinearLayout head = new LinearLayout(this);
-        head.setGravity(Gravity.CENTER);
-        ImageView radioIcon = new ImageView(this);
-        radioIcon.setImageResource(R.drawable.ic_radio);
-        radioIcon.setColorFilter(0xFFFF9F5A);
-        head.addView(radioIcon, new LinearLayout.LayoutParams(dp(22), dp(22)));
-        fmBand = Ui.text(this, "RADIO FM", 15, Color.WHITE);
-        fmBand.setPadding(dp(8), 0, 0, 0);
-        head.addView(fmBand);
-        card.addView(head);
-
-        LinearLayout row = new LinearLayout(this);
-        row.setGravity(Gravity.CENTER);
-        row.addView(Ui.iconButton(this, R.drawable.ic_prev, 52, false, () -> stationStep(false)),
-                new LinearLayout.LayoutParams(dp(52), dp(52)));
-        fmFreq = Ui.text(this, "--.-", 50, Color.WHITE);
-        fmFreq.setTypeface(Typeface.DEFAULT_BOLD);
-        row.addView(fmFreq, new LinearLayout.LayoutParams(0, -2, 1f));
-        row.addView(Ui.iconButton(this, R.drawable.ic_next, 52, false, () -> stationStep(true)),
-                new LinearLayout.LayoutParams(dp(52), dp(52)));
-        row.setPadding(dp(12), dp(10), dp(12), 0);
-        card.addView(row, new LinearLayout.LayoutParams(-1, -2));
-
-        fmUnit = Ui.text(this, "MHz", 15, 0x99FFFFFF);
-        card.addView(fmUnit);
-
-        Ui.pressable(card, 0.97f);
-        card.setOnClickListener(v -> openRadio());
-        return card;
-    }
-
-    private void stationStep(boolean next) {
-        if (!Profile.isNwd(this)) {
-            openRadio();
-            return;
-        }
-        if (!Ui.radioIsSource(this)) {
-            Ui.selectRadio(this, radio); // first tap from Bluetooth: bring the radio back
-            handler.postDelayed(this::updateRadio, 2500);
-            return;
-        }
-        radio.preset(next);
-        handler.postDelayed(this::updateRadio, 300);
-    }
-
-    private void updateRadio() {
-        RadioClient.Station st = radio.current();
-        if (st == null) return;
-        fmBand.setText(st.psName.isEmpty() ? "RADIO " + st.bandLabel() : st.bandLabel() + " · " + st.psName);
-        fmFreq.setText(st.frequencyLabel());
-        fmUnit.setText(st.isAm() ? "kHz" : "MHz");
-    }
-
-    private final Runnable radioPoll = new Runnable() {
-        public void run() {
-            updateRadio();
-            handler.postDelayed(this, 1000);
-        }
-    };
-
-    // ---------- Music (any source) ----------
+    // ---------- Music (any source: Bluetooth, USB or any music app) ----------
 
     private View buildMusicCard() {
         FrameLayout card = new FrameLayout(this);
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
                 Ui.pick(this, new int[]{0xFF6A3BFF, 0xFFC04DE8, 0xFF2B1A7A},
-                        new int[]{0xFF2E1A55, 0xFF1A1030, 0xFF0A0A0E}));
+                        new int[]{Ui.ACCENT_DEEP, Ui.PANEL, Ui.BG}));
         bg.setCornerRadius(dp(18));
         card.setBackground(bg);
         card.setClipToOutline(true);
@@ -379,46 +370,244 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
 
         View shade = new View(this);
         shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0x33000000, 0x00000000, 0xCC100A30}));
+                new int[]{0x33000000, 0x66000000, 0xE6100A30}));
         card.addView(shade, new FrameLayout.LayoutParams(-1, -1));
 
-        songSource = Ui.text(this, "MÚSICA", 12, Color.WHITE);
-        songSource.setLetterSpacing(0.1f);
-        songSource.setPadding(dp(12), dp(5), dp(12), dp(5));
-        GradientDrawable chip = new GradientDrawable();
-        chip.setColor(0x40000000);
-        chip.setCornerRadius(dp(14));
-        songSource.setBackground(chip);
-        FrameLayout.LayoutParams slp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
-        slp.setMargins(dp(14), dp(14), 0, 0);
-        card.addView(songSource, slp);
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(14), dp(12), dp(14), dp(10));
 
-        LinearLayout bottom = new LinearLayout(this);
-        bottom.setOrientation(LinearLayout.VERTICAL);
-        bottom.setPadding(dp(16), 0, dp(16), dp(18));
-        songTitle = Ui.text(this, "", 21, Color.WHITE);
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        sourceIcon = new ImageView(this);
+        head.addView(sourceIcon, new LinearLayout.LayoutParams(dp(24), dp(24)));
+        songSource = left(Ui.text(this, "MÚSICA", 14, Color.WHITE));
+        songSource.setTypeface(Typeface.DEFAULT_BOLD);
+        songSource.setLetterSpacing(0.08f);
+        songSource.setPadding(dp(8), 0, 0, 0);
+        head.addView(songSource, new LinearLayout.LayoutParams(0, -2, 1f));
+        box.addView(head);
+
+        songTitle = left(Ui.text(this, "", 19, Color.WHITE));
         songTitle.setTypeface(Typeface.DEFAULT_BOLD);
-        bottom.addView(songTitle);
-        songArtist = Ui.text(this, "", 15, 0xCCFFFFFF);
-        songArtist.setPadding(0, dp(2), 0, dp(14));
-        bottom.addView(songArtist);
+        songTitle.setPadding(0, dp(8), 0, 0);
+        box.addView(songTitle);
+        songArtist = left(Ui.text(this, "", 14, 0xCCFFFFFF));
+        box.addView(songArtist);
+
+        // Progress of the song (apps that report it): thin bar with elapsed / total time.
+        progressRow = new LinearLayout(this);
+        progressRow.setGravity(Gravity.CENTER_VERTICAL);
+        progress = new LevelBar(this);
+        progressRow.addView(progress, new LinearLayout.LayoutParams(0, dp(4), 1f));
+        progressTime = Ui.text(this, "", 12, 0xCCFFFFFF);
+        progressTime.setPadding(dp(10), 0, 0, 0);
+        progressRow.addView(progressTime);
+        LinearLayout.LayoutParams prl = new LinearLayout.LayoutParams(-1, dp(22));
+        prl.topMargin = dp(6);
+        box.addView(progressRow, prl);
 
         LinearLayout controls = new LinearLayout(this);
         controls.setGravity(Gravity.CENTER);
-        controls.addView(Ui.iconButton(this, R.drawable.ic_prev, 50, false, () -> nowPlaying.skip(false)),
-                new LinearLayout.LayoutParams(dp(50), dp(50)));
-        playBtn = Ui.iconButton(this, R.drawable.ic_play, 66, true, () -> nowPlaying.playPause());
-        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(dp(66), dp(66));
-        plp.setMargins(dp(18), 0, dp(18), 0);
+        controls.addView(Ui.iconButton(this, R.drawable.ic_prev, 46, false, () -> nowPlaying.skip(false)),
+                new LinearLayout.LayoutParams(dp(46), dp(46)));
+        playBtn = Ui.iconButton(this, R.drawable.ic_play, 58, true, () -> nowPlaying.playPause());
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(dp(58), dp(58));
+        plp.setMargins(dp(16), 0, dp(16), 0);
         controls.addView(playBtn, plp);
-        controls.addView(Ui.iconButton(this, R.drawable.ic_next, 50, false, () -> nowPlaying.skip(true)),
-                new LinearLayout.LayoutParams(dp(50), dp(50)));
-        bottom.addView(controls);
-        card.addView(bottom, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        controls.addView(Ui.iconButton(this, R.drawable.ic_next, 46, false, () -> nowPlaying.skip(true)),
+                new LinearLayout.LayoutParams(dp(46), dp(46)));
+        LinearLayout.LayoutParams ctl = new LinearLayout.LayoutParams(-1, 0, 1f);
+        box.addView(controls, ctl);
 
+        // Shortcuts to the music apps on the head unit (YouTube, YouTube Music, Spotify, USB player…).
+        musicApps = new LinearLayout(this);
+        musicApps.setGravity(Gravity.CENTER);
+        box.addView(musicApps, new LinearLayout.LayoutParams(-1, dp(44)));
+        fillMusicApps();
+
+        card.addView(box, new FrameLayout.LayoutParams(-1, -1));
         Ui.pressable(card, 0.98f);
-        card.setOnClickListener(v -> nowPlaying.open(this));
+        card.setOnClickListener(v -> openMusic());
         return card;
+    }
+
+    private void fillMusicApps() {
+        musicApps.removeAllViews();
+        java.util.List<MusicApps.App> apps = MusicApps.find(this);
+        int shown = Math.min(apps.size(), apps.size() > 5 ? 4 : 5);
+        for (int i = 0; i < shown; i++) {
+            MusicApps.App a = apps.get(i);
+            ImageView iv = new ImageView(this);
+            iv.setImageDrawable(a.icon);
+            iv.setPadding(dp(5), dp(5), dp(5), dp(5));
+            iv.setBackground(Ui.circle(0x33FFFFFF));
+            iv.setContentDescription(a.label);
+            Ui.pressable(iv, 0.85f);
+            iv.setOnClickListener(v -> MusicApps.play(this, a));
+            iv.setOnLongClickListener(v -> {
+                MusicApps.launch(this, a);
+                return true;
+            });
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(40), dp(40));
+            lp.setMargins(dp(5), 0, dp(5), 0);
+            musicApps.addView(iv, lp);
+        }
+        if (apps.size() > shown) {
+            ImageView more = Ui.iconButton(this, R.drawable.ic_apps, 40, false, () -> MusicApps.choose(this, apps));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(40), dp(40));
+            lp.setMargins(dp(5), 0, dp(5), 0);
+            musicApps.addView(more, lp);
+        }
+    }
+
+    /** Opens what is playing; with nothing played yet, lets the driver pick a music app. */
+    private void openMusic() {
+        if (!nowPlaying.hasAccess()) {
+            safeStart(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+            return;
+        }
+        if (nowPlaying.current() != null) {
+            nowPlaying.open(this);
+            return;
+        }
+        java.util.List<MusicApps.App> apps = MusicApps.find(this);
+        if (apps.isEmpty()) toast("No se encontró una app de música");
+        else MusicApps.choose(this, apps);
+    }
+
+    // ---------- Map ----------
+
+    private View buildMapCard() {
+        FrameLayout card = new FrameLayout(this);
+        card.setBackground(Ui.card(this));
+        card.setClipToOutline(true);
+
+        map = new MapView(this);
+        card.addView(map, new FrameLayout.LayoutParams(-1, -1));
+
+        TextView chip = Ui.text(this, "MAPA", 12, Color.WHITE);
+        chip.setLetterSpacing(0.1f);
+        chip.setPadding(dp(12), dp(5), dp(12), dp(5));
+        GradientDrawable cbg = new GradientDrawable();
+        cbg.setColor(0x99000000);
+        cbg.setCornerRadius(dp(14));
+        chip.setBackground(cbg);
+        FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.START);
+        clp.setMargins(dp(12), dp(12), 0, 0);
+        card.addView(chip, clp);
+
+        TextView go = Ui.text(this, "Navegar con Google Maps", 15, Color.WHITE);
+        go.setTypeface(Typeface.DEFAULT_BOLD);
+        go.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_nav, 0, 0, 0);
+        go.setCompoundDrawablePadding(dp(8));
+        go.setPadding(dp(18), dp(12), dp(18), dp(12));
+        GradientDrawable gbg = new GradientDrawable();
+        gbg.setColor(Ui.ACCENT);
+        gbg.setCornerRadius(dp(24));
+        go.setBackground(gbg);
+        Ui.pressable(go, 0.94f);
+        go.setOnClickListener(v -> openMaps());
+        FrameLayout.LayoutParams glp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        glp.bottomMargin = dp(22);
+        card.addView(go, glp);
+
+        card.setOnClickListener(v -> openMaps());
+        return card;
+    }
+
+    // ---------- GPS: speedometer and map position ----------
+
+    private final LocationListener locationListener = new LocationListener() {
+        @Override
+        public void onLocationChanged(Location l) {
+            onFix(l);
+        }
+
+        @Override
+        public void onStatusChanged(String provider, int status, Bundle extras) { }
+
+        @Override
+        public void onProviderEnabled(String provider) { }
+
+        @Override
+        public void onProviderDisabled(String provider) { }
+    };
+
+    private void onFix(Location l) {
+        boolean gps = LocationManager.GPS_PROVIDER.equals(l.getProvider());
+        // A recent GPS fix wins over the coarse network position for the map.
+        if (!gps && SystemClock.elapsedRealtime() - lastGpsAt < GPS_STALE_MS) return;
+        map.setLocation(l);
+        if (!gps) return;
+        float kmh;
+        if (l.hasSpeed()) {
+            kmh = l.getSpeed() * 3.6f;
+        } else if (lastGps != null && l.getTime() > lastGps.getTime()) {
+            kmh = lastGps.distanceTo(l) / ((l.getTime() - lastGps.getTime()) / 1000f) * 3.6f;
+        } else {
+            kmh = 0;
+        }
+        if (kmh < 2) kmh = 0; // GPS jitter while parked
+        lastGps = l;
+        lastGpsAt = SystemClock.elapsedRealtime();
+        speedView.setSpeed(kmh);
+        map.setSpeed(kmh);
+    }
+
+    private final Runnable gpsWatch = new Runnable() {
+        public void run() {
+            if (SystemClock.elapsedRealtime() - lastGpsAt > GPS_STALE_MS) speedView.setNoFix(gpsProblem());
+            handler.postDelayed(this, 2000);
+        }
+    };
+
+    /** Why there is no GPS speed right now, as shown under the speedometer. */
+    private String gpsProblem() {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return "toca para permitir";
+        }
+        LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+        if (lm.getProvider(LocationManager.GPS_PROVIDER) == null) return "sin GPS";
+        if (!lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) return "activa la ubicación";
+        return "buscando GPS";
+    }
+
+    /** Tap on the speedometer: fix whatever keeps the GPS from working. */
+    private void fixGps() {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+            return;
+        }
+        LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+        if (lm.getProvider(LocationManager.GPS_PROVIDER) != null && !lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            safeStart(new Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS));
+        }
+    }
+
+    private void startLocation() {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return;
+        LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+        Location last = null;
+        for (String p : lm.getAllProviders()) {
+            try {
+                Location l = lm.getLastKnownLocation(p);
+                if (l != null && (last == null || l.getTime() > last.getTime())) last = l;
+            } catch (SecurityException ignored) { }
+        }
+        if (last != null) map.setLocation(last);
+        try {
+            lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, locationListener);
+        } catch (Exception ignored) { } // no GPS receiver
+        try {
+            lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 10_000, 0, locationListener);
+        } catch (Exception ignored) { }
+        handler.post(gpsWatch);
+    }
+
+    private void stopLocation() {
+        handler.removeCallbacks(gpsWatch);
+        ((LocationManager) getSystemService(LOCATION_SERVICE)).removeUpdates(locationListener);
     }
 
     @Override
@@ -428,7 +617,28 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         boolean empty = t == null || t.title.isEmpty();
         songSource.setText(s == null ? "MÚSICA" : nowPlaying.label(s).toUpperCase());
         songTitle.setText(empty ? "Nada sonando" : t.title);
-        songArtist.setText(empty ? "Toca para abrir la música" : t.artist);
+        songArtist.setText(empty ? "Elige una app de música" : t.artist);
+        if (!nowPlaying.hasAccess() && s != NowPlaying.Source.BT && s != NowPlaying.Source.LOCAL) {
+            // Without notification access the card cannot see YouTube, Spotify…
+            songTitle.setText("Permite ver la música");
+            songArtist.setText("Toca aquí para activarlo");
+        }
+
+        // The playing app's own icon in the header; a note or Bluetooth symbol otherwise.
+        android.graphics.drawable.Drawable appIcon = null;
+        if (s == NowPlaying.Source.APP) {
+            try {
+                appIcon = getPackageManager().getApplicationIcon(nowPlaying.appPackage());
+            } catch (Exception ignored) { }
+        }
+        if (appIcon != null) {
+            sourceIcon.clearColorFilter();
+            sourceIcon.setImageDrawable(appIcon);
+        } else {
+            sourceIcon.setImageResource(s == NowPlaying.Source.BT ? R.drawable.ic_bluetooth : R.drawable.ic_music);
+            sourceIcon.setColorFilter(Ui.ACCENT_LIGHT);
+        }
+        updateProgress();
         playBtn.setImageResource(t != null && t.playing ? R.drawable.ic_pause : R.drawable.ic_play);
 
         if (t != null && t.art != null) {
@@ -438,13 +648,36 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
             art.setAlpha(1f);
             art.setImageBitmap(t.art);
         } else {
-            art.setPadding(dp(80), dp(56), dp(80), dp(170));
+            art.setPadding(dp(70), dp(36), dp(70), dp(110));
             art.setScaleType(ImageView.ScaleType.FIT_CENTER);
             art.setImageResource(s == NowPlaying.Source.BT ? R.drawable.ic_bluetooth : R.drawable.ic_music);
             art.setColorFilter(Color.WHITE);
             art.setAlpha(0.25f);
         }
     }
+
+    private void updateProgress() {
+        NowPlaying.Source s = nowPlaying.current();
+        NowPlaying.Track t = s == null ? null : nowPlaying.track(s);
+        boolean show = s == NowPlaying.Source.APP && t != null && t.duration > 0;
+        progressRow.setVisibility(show ? View.VISIBLE : View.INVISIBLE);
+        if (!show) return;
+        long pos = t.positionNow();
+        progress.setLevel(pos / (float) t.duration);
+        progressTime.setText(clock(pos) + " / " + clock(t.duration));
+    }
+
+    private static String clock(long ms) {
+        long sec = ms / 1000;
+        return sec / 60 + ":" + (sec % 60 < 10 ? "0" : "") + sec % 60;
+    }
+
+    private final Runnable progressTick = new Runnable() {
+        public void run() {
+            updateProgress();
+            handler.postDelayed(this, 1000);
+        }
+    };
 
     // ---------- Dock ----------
 
@@ -569,9 +802,12 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
             requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
         }
         handler.post(periodic);
-        if (Profile.isNwd(this)) handler.post(radioPoll);
+        startLocation();
+        map.onResume();
         nowPlaying.addListener(this);
         onNowPlayingChanged();
+        handler.post(progressTick);
+        fillMusicApps(); // apps installed or removed meanwhile
     }
 
     @Override
@@ -579,19 +815,24 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         super.onPause();
         unregisterReceiver(illReceiver);
         handler.removeCallbacks(periodic);
-        handler.removeCallbacks(radioPoll);
+        stopLocation();
+        handler.removeCallbacks(progressTick);
+        map.onPause();
         nowPlaying.removeListener(this);
     }
 
     @Override
     public void onRequestPermissionsResult(int code, String[] perms, int[] results) {
-        if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) fetchWeather(true);
+        if (results.length > 0 && results[0] == PackageManager.PERMISSION_GRANTED) {
+            fetchWeather(true);
+            stopLocation();
+            startLocation();
+        }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        radio.unbind(this);
     }
 
     private TextView left(TextView tv) {

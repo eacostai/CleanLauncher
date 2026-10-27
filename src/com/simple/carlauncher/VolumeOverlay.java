@@ -27,7 +27,7 @@ import android.widget.TextView;
 
 /**
  * Replaces the factory volume popup: watches the NWD system volume setting
- * (mcu_system_volume, 0..mcu_max_volume) and shows a neon pill at the top.
+ * (mcu_system_volume, 0..mcu_max_volume) and shows a graphite pill at the top.
  */
 public class VolumeOverlay extends Service {
 
@@ -97,10 +97,10 @@ public class VolumeOverlay extends Service {
         pill = new LinearLayout(this);
         pill.setGravity(Gravity.CENTER_VERTICAL);
         pill.setPadding(dp(12), 0, dp(26), 0);
-        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.LEFT_RIGHT,
-                new int[]{0xF21B2C8C, 0xF2371764});
+        GradientDrawable bg = new GradientDrawable();
+        bg.setColor(0xF2151A21);
         bg.setCornerRadius(dp(36));
-        bg.setStroke(dp(1), 0x667FD8FF);
+        bg.setStroke(dp(1), 0x661E90FF);
         pill.setBackground(bg);
         pill.setElevation(dp(12));
 
@@ -108,7 +108,7 @@ public class VolumeOverlay extends Service {
         icon.setImageResource(R.drawable.ic_volume);
         icon.setColorFilter(Color.WHITE);
         icon.setPadding(dp(12), dp(12), dp(12), dp(12));
-        icon.setBackground(Ui.circle(0x33FFFFFF));
+        icon.setBackground(Ui.circle(Ui.PANEL_ACTIVE));
         pill.addView(icon, new LinearLayout.LayoutParams(dp(52), dp(52)));
 
         bar = new Bar(this);
@@ -190,7 +190,7 @@ public class VolumeOverlay extends Service {
 
         Bar(Context c) {
             super(c);
-            track.setColor(0x33FFFFFF);
+            track.setColor(Ui.PANEL_ACTIVE);
         }
 
         void setLevel(float l) {
@@ -200,7 +200,7 @@ public class VolumeOverlay extends Service {
 
         @Override
         protected void onSizeChanged(int w, int h, int ow, int oh) {
-            fill.setShader(new LinearGradient(0, 0, w, 0, 0xFF2EE6FF, 0xFFB45CFF, Shader.TileMode.CLAMP));
+            fill.setShader(new LinearGradient(0, 0, w, 0, Ui.ACCENT, Ui.ACCENT_LIGHT, Shader.TileMode.CLAMP));
         }
 
         @Override
