@@ -155,6 +155,15 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         clp.setMargins(dp(30), dp(4), dp(30), dp(8));
         card.addView(carBox, clp);
 
+        // Model name under the car, spaced out like the badge on the tailgate.
+        TextView model = Ui.text(this, Profile.MODEL, 15, 0xE6FFFFFF);
+        model.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        model.setLetterSpacing(0.6f);
+        model.setShadowLayer(dp(8), 0, 0, 0x991E90FF);
+        LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(-1, -2);
+        mlp.bottomMargin = dp(6);
+        card.addView(model, mlp);
+
         // Compact weather row: icon + temperature + description, leaving room for the car.
         LinearLayout now = new LinearLayout(this);
         now.setGravity(Gravity.CENTER_VERTICAL);

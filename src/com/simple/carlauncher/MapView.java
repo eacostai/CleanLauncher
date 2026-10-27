@@ -40,12 +40,15 @@ public class MapView extends FrameLayout {
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
         s.setCacheMode(WebSettings.LOAD_DEFAULT);
+        s.setUseWideViewPort(true);
+        s.setLoadWithOverviewMode(true);
+        android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
         web.setBackgroundColor(0xFF1A1F27);
         web.setWebViewClient(new WebViewClient() {
             @Override
             @SuppressWarnings("deprecation") // the default request-based version calls this one
             public boolean shouldOverrideUrlLoading(WebView v, String url) {
-                if (url.contains("output=embed")) return false;
+                // The map lives in an iframe; anything that replaces the whole page is a link out.
                 openInMaps(url); // "Ver mapa más grande", directions, place links
                 return true;
             }
@@ -72,10 +75,15 @@ public class MapView extends FrameLayout {
         if (shown != null && (shown.distanceTo(l) < RELOAD_METERS || now - shownAt < RELOAD_MIN_MS)) return;
         shown = l;
         shownAt = now;
-        String url = String.format(Locale.US,
-                "https://maps.google.com/maps?q=%.6f,%.6f&z=%d&hl=es&output=embed",
+        // Same markup a web page uses to embed a Google map: Google serves it only inside a frame.
+        String src = String.format(Locale.US,
+                "https://www.google.com/maps?q=%.6f,%.6f&z=%d&hl=es&output=embed",
                 l.getLatitude(), l.getLongitude(), zoom);
-        web.loadUrl(url);
+        String html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
+                + "<style>html,body{margin:0;height:100%;background:#1A1F27}"
+                + "iframe{border:0;width:100%;height:100%;display:block}</style></head>"
+                + "<body><iframe src=\"" + src + "\" allowfullscreen></iframe></body></html>";
+        web.loadDataWithBaseURL("https://www.google.com/", html, "text/html", "utf-8", null);
     }
 
     /** Zooms out a little on the highway so more of the road ahead is visible. */

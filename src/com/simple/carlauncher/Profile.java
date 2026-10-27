@@ -24,6 +24,9 @@ final class Profile {
     /** Driver of this head unit; used until another name is saved in the setup screen. */
     static final String DEFAULT_NAME = "Eddy";
 
+    /** Model shown under the car on the home screen. */
+    static final String MODEL = "SORENTO";
+
     static String name(Context c) {
         return prefs(c).getString("name", DEFAULT_NAME).trim();
     }
