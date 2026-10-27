@@ -145,32 +145,30 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
             car.setImageResource(R.drawable.ic_car);
             car.setColorFilter(0x40FFFFFF);
         }
-        // Car sits on the bottom of its box so the model name below touches it.
-        car.setAdjustViewBounds(true);
-        carLights.setAdjustViewBounds(true);
-        carBox.addView(car, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
-        carBox.addView(carLights, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        carBox.addView(car, new FrameLayout.LayoutParams(-1, -1));
+        carBox.addView(carLights, new FrameLayout.LayoutParams(-1, -1));
         carBox.setOnClickListener(v -> startActivity(new Intent(this, SetupActivity.class)));
         // Speedometer above the car, fed by the GPS.
         speedView = new SpeedView(this);
         speedView.setOnClickListener(v -> fixGps());
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-1, dp(116));
-        slp.topMargin = dp(6);
+        slp.topMargin = dp(2);
         card.addView(speedView, slp);
 
-        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-1, 0, 1f);
-        clp.setMargins(dp(30), dp(4), dp(30), 0);
-        card.addView(carBox, clp);
+        // Car + model name as one group in the space between speedometer and weather.
+        FrameLayout carArea = new FrameLayout(this);
+        carArea.addView(carBox, new FrameLayout.LayoutParams(0, 0));
 
         // Model name under the car, spaced out like the badge on the tailgate.
         TextView model = Ui.text(this, Profile.MODEL, 15, 0xE6FFFFFF);
         model.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
         model.setLetterSpacing(0.6f);
         model.setShadowLayer(dp(8), 0, 0, 0x991E90FF);
-        LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(-1, -2);
-        mlp.topMargin = dp(2);
-        mlp.bottomMargin = dp(8);
-        card.addView(model, mlp);
+        carArea.addView(model, new FrameLayout.LayoutParams(-1, -2));
+        carArea.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
+            if (r - l != or - ol || b - t != ob - ot) carArea.post(() -> placeCar(carArea, carBox, model));
+        });
+        card.addView(carArea, new LinearLayout.LayoutParams(-1, 0, 1f));
 
         // Compact weather row: icon + temperature + description, leaving room for the car.
         LinearLayout now = new LinearLayout(this);
@@ -210,6 +208,34 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         Ui.pressable(card, 0.98f);
         card.setOnClickListener(v -> fetchWeather(true));
         return card;
+    }
+
+    /**
+     * Sizes the car as large as fits (nearly the card width) and places it with the model name
+     * just below, a little above the middle: less space under the speedometer than over the weather.
+     */
+    private void placeCar(FrameLayout area, View carBox, TextView model) {
+        int w = area.getWidth(), h = area.getHeight();
+        if (w == 0 || h == 0) return;
+        android.graphics.drawable.Drawable d = car.getDrawable();
+        float ratio = d != null && d.getIntrinsicWidth() > 0
+                ? d.getIntrinsicHeight() / (float) d.getIntrinsicWidth() : 0.56f;
+        model.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+                View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
+        int mh = model.getMeasuredHeight(), gap = dp(2);
+        int cw = w - dp(12) * 2, ch = Math.round(cw * ratio);
+        int max = Math.round((h - mh - gap) * 0.92f);
+        if (ch > max) {
+            ch = max;
+            cw = Math.round(ch / ratio);
+        }
+        int top = Math.round((h - ch - mh - gap) * 0.35f);
+        FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(cw, ch, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        clp.topMargin = top;
+        carBox.setLayoutParams(clp);
+        FrameLayout.LayoutParams mlp = new FrameLayout.LayoutParams(-1, -2, Gravity.TOP);
+        mlp.topMargin = top + ch + gap;
+        model.setLayoutParams(mlp);
     }
 
     private void updateGreeting() {
