@@ -85,7 +85,9 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
             startActivity(new Intent(this, SetupActivity.class));
         }
         if (Profile.isNwd(this)) startService(new Intent(this, VolumeOverlay.class));
-        startService(new Intent(this, GreeterService.class));
+        // Greet when the launcher opens (not when it is only recreated for a theme change).
+        startService(new Intent(this, GreeterService.class)
+                .putExtra(GreeterService.EXTRA_GREET_NOW, savedInstanceState == null));
         startService(new Intent(this, Odometer.class));
     }
 

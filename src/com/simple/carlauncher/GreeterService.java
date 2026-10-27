@@ -65,8 +65,13 @@ public class GreeterService extends Service {
         }
     }
 
+    /** Set by the home screen when it opens, so the greeting is also spoken then. */
+    static final String EXTRA_GREET_NOW = "greet_now";
+    private static final long APP_OPEN_DELAY_MS = 5_000;
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && intent.getBooleanExtra(EXTRA_GREET_NOW, false)) schedule(APP_OPEN_DELAY_MS);
         return START_STICKY;
     }
 
@@ -157,10 +162,14 @@ public class GreeterService extends Service {
     // ---------- Greeting ----------
 
     private void schedule() {
+        schedule(DELAY_MS);
+    }
+
+    private void schedule(long delayMs) {
         long last = prefs().getLong("last_greet", 0);
         if (System.currentTimeMillis() - last < MIN_INTERVAL_MS) return;
         handler.removeCallbacks(greet);
-        handler.postDelayed(greet, DELAY_MS);
+        handler.postDelayed(greet, delayMs);
         Weather.fetch(this, w -> { }); // refresh the cache before speaking
     }
 
@@ -168,19 +177,28 @@ public class GreeterService extends Service {
         if (!Profile.voiceEnabled(this)) return;
         prefs().edit().putLong("last_greet", System.currentTimeMillis()).apply();
         List<String> clips = buildMessage();
-        // Owner's build ships recorded clips; shared builds speak with the device's TTS engine.
-        if (getResources().getIdentifier("v_careful", "raw", getPackageName()) != 0) speak(clips);
-        else speakTts(Speech.text(this, clips));
+        // Text-to-speech says the driver's name; the recorded clips (owner's build) are the
+        // fallback when the head unit has no Spanish TTS engine.
+        speakTts(Speech.text(this, clips), clips);
     };
+
+    private boolean hasRecordedClips() {
+        return getResources().getIdentifier("v_careful", "raw", getPackageName()) != 0;
+    }
 
     private android.speech.tts.TextToSpeech tts;
 
-    private void speakTts(String text) {
+    private void speakTts(String text, List<String> fallbackClips) {
         if (tts != null) tts.shutdown();
         tts = new android.speech.tts.TextToSpeech(this, status -> {
-            if (status != android.speech.tts.TextToSpeech.SUCCESS) return;
             java.util.Locale es = new java.util.Locale("es", "US");
-            if (tts.isLanguageAvailable(es) < 0) es = new java.util.Locale("es");
+            boolean ok = status == android.speech.tts.TextToSpeech.SUCCESS;
+            if (ok && tts.isLanguageAvailable(es) < 0) es = new java.util.Locale("es");
+            if (!ok || tts.isLanguageAvailable(es) < 0) {
+                Log.d(TAG, "no Spanish TTS, using recorded clips");
+                if (hasRecordedClips()) speak(fallbackClips);
+                return;
+            }
             tts.setLanguage(es);
             Bundle params = new Bundle();
             tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, params, "greet");
