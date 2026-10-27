@@ -10,6 +10,9 @@ Base: `main` en `e4170d4` («Build portable, CI y nuevas funciones»).
 | Saludo | La pantalla principal muestra «¡Bienvenido, EDDY!». Usa el nombre del perfil en mayúsculas; por defecto es Eddy. El subtítulo solo dice «Buenos días / Buenas tardes / Buenas noches». | `Profile.java`, `MainActivity.java`, `SetupActivity.java` (ejemplo del campo nombre) |
 | Tema grafito | El tema oscuro pasa a fondo grafito `#0B0D10`, paneles `#151A21` y acento azul eléctrico `#1E90FF`, y es el tema por defecto. El tema claro no cambia. El morado del anillo, dial, deslizadores, ecualizador y aviso de volumen pasa a azul. | `Ui.java`, `res/values/styles.xml`, `res/values/colors.xml` (nuevo), `RingView.java`, `DialView.java`, `LevelSlider.java`, `VolumeOverlay.java`, `EqActivity.java`, `RadioActivity.java`, `BtActivity.java`, `BtDevicesActivity.java`, `OilActivity.java` |
 | Pantalla principal | Barra superior con la foto propia del carro, el saludo y los indicadores reales (teléfono BT, red, clima, aceite). Reproductor a la izquierda; reloj, radio FM, Bluetooth y volumen a la derecha; dock con etiquetas. La foto incluida del Optra ya no se muestra. | `MainActivity.java`, `AndroidManifest.xml` (`ACCESS_NETWORK_STATE`), `res/drawable/ic_wifi.xml` (nuevo) |
+| Volver a la distribución original | A pedido, la pantalla principal vuelve a las tarjetas originales (saludo con foto y clima, reloj y aceite, radio FM, música, dock). Se revierte el commit anterior. | `MainActivity.java`, `AndroidManifest.xml`, `res/drawable/ic_wifi.xml` (borrado) |
+| Foto de la Sorento | Kia Sorento recortada y en gris grafito, con versión de faros encendidos para el efecto de luces. Reemplaza las fotos del Optra. | `res/drawable-nodpi/sorento*.png` (nuevas), `optra*.png` (borradas), `Profile.java`, `MainActivity.java` |
+| Voz al abrir | El saludo por voz suena también al abrir el launcher (5 s después; máximo uno por minuto). Usa texto a voz para decir el nombre y, si la radio no tiene voz en español, los clips grabados. | `GreeterService.java`, `MainActivity.java` |
 
 Sin cambios: `RadioClient`, `BtClient`, `SoundClient`, `NowPlaying`, `MediaListener`, `MusicBean`, `BTDevice`,
 `ScreenOffActivity`, `Odometer`, `Weather`, `EqAuto`, `build.sh`, el flujo de CI y `backup/`.
@@ -18,18 +21,13 @@ Se conserva todo lo que añadió `e4170d4` en la pantalla principal: la configur
 para radios que no son NWD (radio, Bluetooth, ecualizador y ajustes de la propia radio), el cambio
 automático de tema con las luces y la recarga al cambiar el nombre o la foto.
 
-## Volumen
-
-La tarjeta de volumen es de solo lectura. En radios NWD muestra el volumen del MCU (`mcu_system_volume`);
-en otras radios, el volumen multimedia de Android. Al tocarla se abre el ecualizador. No hay botones +/−.
-
 ## Saludo por voz
 
-- Con `sh build.sh` el APK lleva los clips grabados del dueño original. No dicen tu nombre, y el del lunes
-  dice «¡Hola, papacito!».
-- Con `VARIANT=share sh build.sh` el APK no lleva esos clips ni las fotos del Optra. El saludo se dice
-  con el motor de texto a voz de la radio y usa tu nombre («¡Buenas tardes, Eddy! Bienvenido.»). Al
-  primer arranque abre la configuración para que pongas tu nombre y la foto de tu Sorento.
+Suena al dar contacto y al abrir el launcher. Usa el motor de texto a voz de la radio para decir
+«¡Buenas tardes, Eddy! Bienvenido.» junto con el clima y los avisos. Si la radio no tiene voz en español,
+usa los clips grabados del dueño original, que no dicen tu nombre.
+
+La foto de la Sorento queda incluida en las dos variantes (`sh build.sh` y `VARIANT=share sh build.sh`).
 
 ## Pruebas hechas (sin hardware)
 
