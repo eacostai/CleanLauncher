@@ -61,7 +61,7 @@ public class BtDevicesActivity extends Activity {
         searchChip = Ui.text(this, "Buscar", 16, Color.WHITE);
         searchChip.setPadding(dp(20), dp(10), dp(20), dp(10));
         GradientDrawable sbg = new GradientDrawable();
-        sbg.setColor(0xFF4F7BFF);
+        sbg.setColor(Ui.ACCENT);
         sbg.setCornerRadius(dp(22));
         searchChip.setBackground(sbg);
         Ui.pressable(searchChip, 0.92f);
@@ -87,7 +87,7 @@ public class BtDevicesActivity extends Activity {
         card.setGravity(Gravity.CENTER_HORIZONTAL);
         card.setPadding(dp(22), dp(22), dp(22), dp(22));
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                Ui.pick(this, new int[]{0xFF2E6BFF, 0xFF6A3BFF, 0xFFB04CE8}, new int[]{0xFF1F2A55, 0xFF1A1235, 0xFF0B0B10}));
+                Ui.pick(this, new int[]{0xFF2E6BFF, 0xFF6A3BFF, 0xFFB04CE8}, new int[]{Ui.ACCENT_DEEP, Ui.PANEL, Ui.PANEL}));
         bg.setCornerRadius(dp(18));
         card.setBackground(bg);
 

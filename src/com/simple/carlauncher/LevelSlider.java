@@ -55,8 +55,8 @@ public class LevelSlider extends View {
     @Override
     protected void onSizeChanged(int w, int h, int ow, int oh) {
         fill.setShader(vertical
-                ? new LinearGradient(0, h, 0, 0, 0xFF2EE6FF, 0xFFB45CFF, Shader.TileMode.CLAMP)
-                : new LinearGradient(0, 0, w, 0, 0xFF2EE6FF, 0xFFB45CFF, Shader.TileMode.CLAMP));
+                ? new LinearGradient(0, h, 0, 0, Ui.ACCENT_LIGHT, Ui.ACCENT, Shader.TileMode.CLAMP)
+                : new LinearGradient(0, 0, w, 0, Ui.ACCENT_LIGHT, Ui.ACCENT, Shader.TileMode.CLAMP));
     }
 
     @Override

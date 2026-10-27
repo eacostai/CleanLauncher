@@ -15,7 +15,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-/** Shared look (neon blue/purple) and small helpers for all screens. */
+/** Shared look (graphite + electric blue, or the light neon theme) and small helpers for all screens. */
 final class Ui {
 
     // MCU source ids for ACTION_REQUEST_CHANGE_SOURCE: the "Source" column of
@@ -23,6 +23,19 @@ final class Ui {
     static final int SOURCE_MUSIC = -128;
     static final int SOURCE_RADIO = 4;
     static final int SOURCE_BT_MUSIC = -125;
+
+    // Dark theme palette: graphite panels with electric-blue accents.
+    static final int BG = 0xFF0B0D10;
+    static final int PANEL = 0xFF151A21;
+    static final int PANEL_ACTIVE = 0xFF1C2330;
+    static final int STROKE = 0xFF252C36;
+    static final int ACCENT = 0xFF1E90FF;
+    static final int ACCENT_LIGHT = 0xFF5CC8FF;
+    static final int ACCENT_DEEP = 0xFF123A6B;
+    static final int TEXT = 0xFFF2F5F8;
+    static final int TEXT_2 = 0xFF9AA4B2;
+    static final int WARN = 0xFFFFB020;
+    static final int ERROR = 0xFFFF4D4F;
 
     private Ui() { }
 
@@ -35,7 +48,7 @@ final class Ui {
     static final String THEME_AUTO = "auto", THEME_LIGHT = "light", THEME_DARK = "dark";
 
     static String themeMode(Context c) {
-        return c.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("theme", THEME_AUTO);
+        return c.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("theme", THEME_DARK);
     }
 
     static void setThemeMode(Context c, String mode) {
@@ -59,13 +72,14 @@ final class Ui {
 
     static Drawable background(Context c) {
         if (isDark(c)) {
-            GradientDrawable base = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                    new int[]{0xFF0C0C12, 0xFF050507, 0xFF000000});
+            GradientDrawable base = new GradientDrawable();
+            base.setColor(BG);
+            // A faint blue light from the top-left corner, barely visible on graphite.
             GradientDrawable glow = new GradientDrawable();
             glow.setGradientType(GradientDrawable.RADIAL_GRADIENT);
             glow.setGradientRadius(dp(c, 560));
-            glow.setGradientCenter(0.95f, 0.95f);
-            glow.setColors(new int[]{0x223F5AFF, 0x003F5AFF});
+            glow.setGradientCenter(0.1f, 0f);
+            glow.setColors(new int[]{0x1A1E90FF, 0x001E90FF});
             return new LayerDrawable(new Drawable[]{base, glow});
         }
         GradientDrawable base = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
@@ -84,12 +98,32 @@ final class Ui {
     }
 
     static GradientDrawable card(Context c) {
-        boolean dark = isDark(c);
+        if (isDark(c)) {
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(PANEL);
+            bg.setCornerRadius(dp(c, 16));
+            bg.setStroke(dp(c, 1), STROKE);
+            return bg;
+        }
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                dark ? new int[]{0xFF17171E, 0xFF101015} : new int[]{0x4D5B6CFF, 0x333B3FB8});
+                new int[]{0x4D5B6CFF, 0x333B3FB8});
         bg.setCornerRadius(dp(c, 18));
-        bg.setStroke(dp(c, 1), dark ? 0x14FFFFFF : 0x337F9CFF);
+        bg.setStroke(dp(c, 1), 0x337F9CFF);
         return bg;
+    }
+
+    /** Fill for secondary buttons and chips. */
+    static int fill(Context c) {
+        return isDark(c) ? PANEL_ACTIVE : 0x26FFFFFF;
+    }
+
+    /** Text colours: primary and secondary. */
+    static int text1(Context c) {
+        return isDark(c) ? TEXT : Color.WHITE;
+    }
+
+    static int text2(Context c) {
+        return isDark(c) ? TEXT_2 : 0xB3FFFFFF;
     }
 
     static GradientDrawable circle(int color) {
@@ -110,14 +144,14 @@ final class Ui {
         return tv;
     }
 
-    /** Round icon button. filled = white disc with dark icon (primary action). */
+    /** Round icon button. filled = electric-blue disc (primary action). */
     static ImageView iconButton(Context c, int icon, int sizeDp, boolean filled, Runnable action) {
         ImageView b = new ImageView(c);
         b.setImageResource(icon);
         int pad = Math.round(sizeDp * 0.24f);
         b.setPadding(dp(c, pad), dp(c, pad), dp(c, pad), dp(c, pad));
-        b.setBackground(circle(filled ? Color.WHITE : 0x26FFFFFF));
-        b.setColorFilter(filled ? 0xFF2A1F6E : Color.WHITE);
+        b.setBackground(circle(filled ? ACCENT : fill(c)));
+        b.setColorFilter(filled ? Color.WHITE : text1(c));
         pressable(b, 0.88f);
         b.setOnClickListener(v -> action.run());
         return b;
