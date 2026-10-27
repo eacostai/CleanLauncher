@@ -53,6 +53,10 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
     private ImageView art, playBtn;
     private TextView songSource, songTitle, songArtist;
     private LinearLayout musicApps;
+    private ImageView sourceIcon;
+    private LinearLayout progressRow;
+    private LevelBar progress;
+    private TextView progressTime;
 
     private static final long GPS_STALE_MS = 5000;
     private SpeedView speedView;
@@ -349,10 +353,8 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
 
         LinearLayout head = new LinearLayout(this);
         head.setGravity(Gravity.CENTER_VERTICAL);
-        ImageView note = new ImageView(this);
-        note.setImageResource(R.drawable.ic_music);
-        note.setColorFilter(Ui.ACCENT_LIGHT);
-        head.addView(note, new LinearLayout.LayoutParams(dp(20), dp(20)));
+        sourceIcon = new ImageView(this);
+        head.addView(sourceIcon, new LinearLayout.LayoutParams(dp(24), dp(24)));
         songSource = left(Ui.text(this, "MÚSICA", 14, Color.WHITE));
         songSource.setTypeface(Typeface.DEFAULT_BOLD);
         songSource.setLetterSpacing(0.08f);
@@ -366,6 +368,18 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         box.addView(songTitle);
         songArtist = left(Ui.text(this, "", 14, 0xCCFFFFFF));
         box.addView(songArtist);
+
+        // Progress of the song (apps that report it): thin bar with elapsed / total time.
+        progressRow = new LinearLayout(this);
+        progressRow.setGravity(Gravity.CENTER_VERTICAL);
+        progress = new LevelBar(this);
+        progressRow.addView(progress, new LinearLayout.LayoutParams(0, dp(4), 1f));
+        progressTime = Ui.text(this, "", 12, 0xCCFFFFFF);
+        progressTime.setPadding(dp(10), 0, 0, 0);
+        progressRow.addView(progressTime);
+        LinearLayout.LayoutParams prl = new LinearLayout.LayoutParams(-1, dp(22));
+        prl.topMargin = dp(6);
+        box.addView(progressRow, prl);
 
         LinearLayout controls = new LinearLayout(this);
         controls.setGravity(Gravity.CENTER);
@@ -404,7 +418,11 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
             iv.setBackground(Ui.circle(0x33FFFFFF));
             iv.setContentDescription(a.label);
             Ui.pressable(iv, 0.85f);
-            iv.setOnClickListener(v -> MusicApps.launch(this, a));
+            iv.setOnClickListener(v -> MusicApps.play(this, a));
+            iv.setOnLongClickListener(v -> {
+                MusicApps.launch(this, a);
+                return true;
+            });
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(40), dp(40));
             lp.setMargins(dp(5), 0, dp(5), 0);
             musicApps.addView(iv, lp);
@@ -419,6 +437,10 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
 
     /** Opens what is playing; with nothing played yet, lets the driver pick a music app. */
     private void openMusic() {
+        if (!nowPlaying.hasAccess()) {
+            safeStart(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+            return;
+        }
         if (nowPlaying.current() != null) {
             nowPlaying.open(this);
             return;
@@ -570,6 +592,27 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         songSource.setText(s == null ? "MÚSICA" : nowPlaying.label(s).toUpperCase());
         songTitle.setText(empty ? "Nada sonando" : t.title);
         songArtist.setText(empty ? "Elige una app de música" : t.artist);
+        if (!nowPlaying.hasAccess() && s != NowPlaying.Source.BT && s != NowPlaying.Source.LOCAL) {
+            // Without notification access the card cannot see YouTube, Spotify…
+            songTitle.setText("Permite ver la música");
+            songArtist.setText("Toca aquí para activarlo");
+        }
+
+        // The playing app's own icon in the header; a note or Bluetooth symbol otherwise.
+        android.graphics.drawable.Drawable appIcon = null;
+        if (s == NowPlaying.Source.APP) {
+            try {
+                appIcon = getPackageManager().getApplicationIcon(nowPlaying.appPackage());
+            } catch (Exception ignored) { }
+        }
+        if (appIcon != null) {
+            sourceIcon.clearColorFilter();
+            sourceIcon.setImageDrawable(appIcon);
+        } else {
+            sourceIcon.setImageResource(s == NowPlaying.Source.BT ? R.drawable.ic_bluetooth : R.drawable.ic_music);
+            sourceIcon.setColorFilter(Ui.ACCENT_LIGHT);
+        }
+        updateProgress();
         playBtn.setImageResource(t != null && t.playing ? R.drawable.ic_pause : R.drawable.ic_play);
 
         if (t != null && t.art != null) {
@@ -586,6 +629,29 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
             art.setAlpha(0.25f);
         }
     }
+
+    private void updateProgress() {
+        NowPlaying.Source s = nowPlaying.current();
+        NowPlaying.Track t = s == null ? null : nowPlaying.track(s);
+        boolean show = s == NowPlaying.Source.APP && t != null && t.duration > 0;
+        progressRow.setVisibility(show ? View.VISIBLE : View.INVISIBLE);
+        if (!show) return;
+        long pos = t.positionNow();
+        progress.setLevel(pos / (float) t.duration);
+        progressTime.setText(clock(pos) + " / " + clock(t.duration));
+    }
+
+    private static String clock(long ms) {
+        long sec = ms / 1000;
+        return sec / 60 + ":" + (sec % 60 < 10 ? "0" : "") + sec % 60;
+    }
+
+    private final Runnable progressTick = new Runnable() {
+        public void run() {
+            updateProgress();
+            handler.postDelayed(this, 1000);
+        }
+    };
 
     // ---------- Dock ----------
 
@@ -714,6 +780,8 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         map.onResume();
         nowPlaying.addListener(this);
         onNowPlayingChanged();
+        handler.post(progressTick);
+        fillMusicApps(); // apps installed or removed meanwhile
     }
 
     @Override
@@ -722,6 +790,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         unregisterReceiver(illReceiver);
         handler.removeCallbacks(periodic);
         stopLocation();
+        handler.removeCallbacks(progressTick);
         map.onPause();
         nowPlaying.removeListener(this);
     }

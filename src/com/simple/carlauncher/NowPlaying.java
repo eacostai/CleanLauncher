@@ -39,6 +39,16 @@ final class NowPlaying {
         Bitmap art;
         boolean playing;
         long updated;
+        /** Apps only: track length and last reported position (ms), 0 when unknown. */
+        long duration, position, positionAt;
+        float speed = 1f;
+
+        /** Current playback position, moved on from the last report while playing. */
+        long positionNow() {
+            if (!playing || positionAt == 0) return position;
+            long p = position + (long) ((SystemClock.elapsedRealtime() - positionAt) * speed);
+            return duration > 0 ? Math.min(p, duration) : p;
+        }
     }
 
     private static NowPlaying instance;
@@ -56,6 +66,7 @@ final class NowPlaying {
     private final MediaSessionManager sessions;
     private final ComponentName notificationListener;
     private MediaController controller;
+    private boolean listening;
 
     private NowPlaying(Context c) {
         ctx = c;
@@ -72,12 +83,7 @@ final class NowPlaying {
         f.addAction("com.bt.ACTION_AVRCP_RELEASE");
         c.registerReceiver(receiver, f);
 
-        try {
-            sessions.addOnActiveSessionsChangedListener(list -> refreshSessions(), notificationListener);
-        } catch (SecurityException ignored) {
-            // Notification access not granted: app sessions are not visible.
-        }
-        refreshSessions();
+        ensureListening();
 
         btClient.bind(c, () -> {
             bt.playing = btClient.isMusicPlaying();
@@ -137,6 +143,43 @@ final class NowPlaying {
 
     // ---------- App media sessions ----------
 
+    /** Starts following app sessions; retried on every home-screen resume until access is granted. */
+    void ensureListening() {
+        if (!listening) {
+            try {
+                sessions.addOnActiveSessionsChangedListener(list -> refreshSessions(), notificationListener);
+                listening = true;
+            } catch (SecurityException ignored) {
+                // Notification access not granted: app sessions are not visible.
+            }
+        }
+        refreshSessions();
+    }
+
+    /** Whether the user allowed reading other apps' music (notification access). */
+    boolean hasAccess() {
+        String l = android.provider.Settings.Secure.getString(ctx.getContentResolver(), "enabled_notification_listeners");
+        return l != null && l.contains(ctx.getPackageName());
+    }
+
+    /** Package of the app whose session is shown, or "" when none. */
+    String appPackage() {
+        return controller == null ? "" : controller.getPackageName();
+    }
+
+    /** Resumes the app's own player if it already has a media session. */
+    boolean playApp(String pkg) {
+        try {
+            for (MediaController c : sessions.getActiveSessions(notificationListener)) {
+                if (pkg.equals(c.getPackageName())) {
+                    c.getTransportControls().play();
+                    return true;
+                }
+            }
+        } catch (SecurityException ignored) { }
+        return false;
+    }
+
     private final MediaController.Callback sessionCallback = new MediaController.Callback() {
         public void onMetadataChanged(MediaMetadata m) { readSession(); }
         public void onPlaybackStateChanged(PlaybackState s) { readSession(); }
@@ -170,6 +213,7 @@ final class NowPlaying {
             app.art = null;
             app.playing = false;
             app.updated = 0;
+            app.duration = app.position = app.positionAt = 0;
         } else {
             MediaMetadata m = controller.getMetadata();
             PlaybackState s = controller.getPlaybackState();
@@ -181,6 +225,15 @@ final class NowPlaying {
             boolean playing = s != null && s.getState() == PlaybackState.STATE_PLAYING;
             if (playing || !app.title.isEmpty()) app.updated = SystemClock.elapsedRealtime();
             app.playing = playing;
+            app.duration = m == null ? 0 : Math.max(0, m.getLong(MediaMetadata.METADATA_KEY_DURATION));
+            if (s != null && s.getPosition() >= 0) {
+                app.position = s.getPosition();
+                app.positionAt = s.getLastPositionUpdateTime() > 0 ? s.getLastPositionUpdateTime()
+                        : SystemClock.elapsedRealtime();
+                app.speed = s.getPlaybackSpeed() > 0 ? s.getPlaybackSpeed() : 1f;
+            } else {
+                app.position = app.positionAt = 0;
+            }
         }
         notifyListeners();
     }
@@ -265,7 +318,7 @@ final class NowPlaying {
 
     void addListener(Listener l) {
         listeners.add(l);
-        refreshSessions();
+        ensureListening();
         if (btClient.isBound()) btClient.queryId3();
     }
 
