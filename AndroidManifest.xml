@@ -53,6 +53,15 @@
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
             android:configChanges="orientation|screenSize|keyboardHidden|locale" />
 
+        <activity
+            android:name=".SplashActivity"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity="com.simple.carlauncher.splash"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+            android:configChanges="orientation|screenSize|keyboardHidden|locale" />
+
         <service android:name=".VolumeOverlay" />
 
         <service android:name=".GreeterService" />

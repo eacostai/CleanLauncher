@@ -22,6 +22,7 @@ public class SpeedView extends View {
     private final RectF r = new RectF();
     private float speed, shown;
     private boolean hasFix;
+    private String noFixLabel = "buscando GPS";
 
     public SpeedView(Context c) {
         super(c);
@@ -48,8 +49,10 @@ public class SpeedView extends View {
         invalidate();
     }
 
-    void setNoFix() {
+    /** No current GPS speed; label says why (searching, GPS off, no permission). */
+    void setNoFix(String label) {
         hasFix = false;
+        noFixLabel = label;
         speed = 0;
         invalidate();
     }
@@ -77,6 +80,6 @@ public class SpeedView extends View {
 
         float cy = r.centerY() + number.getTextSize() * 0.35f;
         c.drawText(hasFix ? String.valueOf(Math.round(shown)) : "--", r.centerX(), cy, number);
-        c.drawText(hasFix ? "km/h" : "sin GPS", r.centerX(), cy + unit.getTextSize() * 1.4f, unit);
+        c.drawText(hasFix ? "km/h" : noFixLabel, r.centerX(), cy + unit.getTextSize() * 1.4f, unit);
     }
 }

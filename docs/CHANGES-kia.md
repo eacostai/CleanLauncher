@@ -13,6 +13,7 @@ Base: `main` en `e4170d4` («Build portable, CI y nuevas funciones»).
 | Volver a la distribución original | A pedido, la pantalla principal vuelve a las tarjetas originales (saludo con foto y clima, reloj y aceite, radio FM, música, dock). Se revierte el commit anterior. | `MainActivity.java`, `AndroidManifest.xml`, `res/drawable/ic_wifi.xml` (borrado) |
 | Foto de la Sorento | Kia Sorento recortada y en gris grafito, con versión de faros encendidos para el efecto de luces. Reemplaza las fotos del Optra. | `res/drawable-nodpi/sorento*.png` (nuevas), `optra*.png` (borradas), `Profile.java`, `MainActivity.java` |
 | Música, mapa y velocímetro | La tarjeta de Radio FM pasa a ser la de Música: muestra lo que suena en cualquier fuente (Bluetooth, USB o apps como YouTube, YouTube Music o Spotify), con anterior, reproducir y siguiente, y una fila con las apps de música instaladas. Donde estaba la música va un mapa con tu posición y el botón «Navegar con Google Maps». Encima del auto, un velocímetro con la velocidad real del GPS. La radio FM sigue en el dock. | `MainActivity.java`, `MusicApps.java`, `MapView.java`, `SpeedView.java` (nuevos) |
+| Mapa de Google y animación Kia | El mapa de la pantalla principal pasa a ser el mapa de Google (el que se inserta en páginas web, sin clave), movible con el dedo; sus enlaces abren Google Maps. El velocímetro dice por qué no hay velocidad (buscando GPS, ubicación apagada, falta permiso) y al tocarlo ofrece arreglarlo. Animación de inicio con el logo de Kia al encender el carro o la pantalla y al abrir el launcher. | `MapView.java`, `SpeedView.java`, `MainActivity.java`, `SplashActivity.java` (nueva), `GreeterService.java`, `AndroidManifest.xml`, `res/drawable-nodpi/kia_logo.png` (nueva) |
 | Voz al abrir | El saludo por voz suena también al abrir el launcher (5 s después; máximo uno por minuto). Usa texto a voz para decir el nombre y, si la radio no tiene voz en español, los clips grabados. | `GreeterService.java`, `MainActivity.java` |
 
 Sin cambios: `RadioClient`, `BtClient`, `SoundClient`, `NowPlaying`, `MediaListener`, `MusicBean`, `BTDevice`,
@@ -24,12 +25,19 @@ automático de tema con las luces y la recarga al cambiar el nombre o la foto.
 
 ## Mapa y velocímetro
 
-- El velocímetro usa el GPS de la radio (una lectura por segundo). Muestra 0 por debajo de 2 km/h para no
-  marcar el temblor del GPS estacionado, y «sin GPS» si pasan 5 segundos sin señal.
-- Google Maps no se puede incrustar dentro de otra app sin una clave de Google Maps y los servicios de
-  Google Play, así que el mapa de la pantalla principal usa mapas de OpenStreetMap (CARTO) con tu posición
-  y dirección. Necesita internet para descargar las zonas nuevas y las guarda (hasta unos 60 MB) para
-  verlas sin conexión. Tocar el mapa o el botón abre Google Maps para navegar.
+- El velocímetro usa el GPS (una lectura por segundo). Muestra 0 por debajo de 2 km/h para no marcar el
+  temblor del GPS estacionado. Sin lectura en 5 segundos indica el motivo: «buscando GPS» (bajo techo
+  es normal), «activa la ubicación», «toca para permitir» o «sin GPS» si el equipo no tiene receptor.
+- Google Maps como app no se puede meter dentro de otra app, así que la tarjeta muestra el mapa de Google
+  para páginas web, centrado en tu posición. Se recarga al avanzar unos 250 m (como mucho cada 20 s) y
+  necesita internet. El botón «Navegar con Google Maps» abre la app para la navegación guiada.
+
+## Animación de inicio
+
+Logo de Kia con una línea de luz azul, brillo que lo recorre y el saludo; dura unos 3 segundos y se
+salta tocando la pantalla. Aparece al dar contacto, al encenderse la pantalla y al abrir el launcher,
+una vez cada 30 segundos como máximo. En Android 10 o más nuevo (por ejemplo, una tablet de prueba)
+el sistema solo deja mostrarla al encender la pantalla si el launcher tiene el permiso de superposición.
 
 ## Saludo por voz
 

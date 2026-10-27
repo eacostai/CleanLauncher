@@ -56,12 +56,14 @@ public class GreeterService extends Service {
         f.addAction("com.bt.ACTION_BT_MUSIC_PLAY");
         f.addAction("com.bt.ACTION_BT_MUSIC_PAUSE");
         f.addAction("com.simple.carlauncher.TEST_CAR_ON"); // adb test hook
+        f.addAction(Intent.ACTION_SCREEN_ON); // start-up animation
         registerReceiver(events, f);
         // Right after boot, bring the last source back and greet. A plain restart of this app
         // (update, crash) must not touch the audio.
         if (android.os.SystemClock.elapsedRealtime() < 3 * 60_000) {
             handler.postDelayed(this::restoreAudio, 4000);
             schedule();
+            SplashActivity.show(this);
         }
     }
 
@@ -92,6 +94,8 @@ public class GreeterService extends Service {
                 Log.d(TAG, "mcu_state=" + state);
                 if (state == 3) onCarOff();
                 else if (state == 1) onCarOn();
+            } else if (Intent.ACTION_SCREEN_ON.equals(a)) {
+                SplashActivity.show(GreeterService.this);
             } else if ("com.simple.carlauncher.TEST_CAR_ON".equals(a)) {
                 onCarOn();
             } else if ("com.bt.ACTION_BT_MUSIC_PAUSE".equals(a)) {
@@ -132,6 +136,7 @@ public class GreeterService extends Service {
     }
 
     private void onCarOn() {
+        SplashActivity.show(this);
         handler.postDelayed(this::restoreAudio, 3000);
         schedule();
     }

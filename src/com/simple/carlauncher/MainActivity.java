@@ -96,6 +96,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         startService(new Intent(this, GreeterService.class)
                 .putExtra(GreeterService.EXTRA_GREET_NOW, savedInstanceState == null));
         startService(new Intent(this, Odometer.class));
+        if (savedInstanceState == null) SplashActivity.show(this);
     }
 
     // ---------- Greeting + weather ----------
@@ -145,6 +146,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         carBox.setOnClickListener(v -> startActivity(new Intent(this, SetupActivity.class)));
         // Speedometer above the car, fed by the GPS.
         speedView = new SpeedView(this);
+        speedView.setOnClickListener(v -> fixGps());
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-1, dp(88));
         slp.topMargin = dp(6);
         card.addView(speedView, slp);
@@ -420,7 +422,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         card.setBackground(Ui.card(this));
         card.setClipToOutline(true);
 
-        map = new MapView(this, Ui.isDark(this));
+        map = new MapView(this);
         card.addView(map, new FrameLayout.LayoutParams(-1, -1));
 
         TextView chip = Ui.text(this, "MAPA", 12, Color.WHITE);
@@ -494,10 +496,33 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
 
     private final Runnable gpsWatch = new Runnable() {
         public void run() {
-            if (SystemClock.elapsedRealtime() - lastGpsAt > GPS_STALE_MS) speedView.setNoFix();
+            if (SystemClock.elapsedRealtime() - lastGpsAt > GPS_STALE_MS) speedView.setNoFix(gpsProblem());
             handler.postDelayed(this, 2000);
         }
     };
+
+    /** Why there is no GPS speed right now, as shown under the speedometer. */
+    private String gpsProblem() {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            return "toca para permitir";
+        }
+        LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+        if (lm.getProvider(LocationManager.GPS_PROVIDER) == null) return "sin GPS";
+        if (!lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) return "activa la ubicación";
+        return "buscando GPS";
+    }
+
+    /** Tap on the speedometer: fix whatever keeps the GPS from working. */
+    private void fixGps() {
+        if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
+            return;
+        }
+        LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+        if (lm.getProvider(LocationManager.GPS_PROVIDER) != null && !lm.isProviderEnabled(LocationManager.GPS_PROVIDER)) {
+            safeStart(new Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS));
+        }
+    }
 
     private void startLocation() {
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return;
@@ -673,6 +698,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         }
         handler.post(periodic);
         startLocation();
+        map.onResume();
         nowPlaying.addListener(this);
         onNowPlayingChanged();
     }
@@ -683,6 +709,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         unregisterReceiver(illReceiver);
         handler.removeCallbacks(periodic);
         stopLocation();
+        map.onPause();
         nowPlaying.removeListener(this);
     }
 
