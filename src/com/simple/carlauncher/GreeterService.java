@@ -19,7 +19,7 @@ import java.util.List;
 
 /**
  * Spoken welcome ~20 s after the car is switched on: greeting, current weather,
- * seat-belt reminder, "pico y placa" on Wednesdays and "drive carefully".
+ * seat-belt reminder and "drive carefully".
  *
  * The phrases are pre-rendered clips (res/raw/v_*.mp3) because the head unit has no
  * text-to-speech engine. The launcher is listed in /nwdappconfig/app/NaviSound.ini so the
@@ -210,9 +210,6 @@ public class GreeterService extends Service {
             else if (left <= Odometer.WARN_KM) clips.add("v_oil_soon");
         }
         clips.add("v_seatbelt");
-        if (day == Calendar.WEDNESDAY && Profile.picoPlacaEnabled(this)) {
-            clips.add("v_picoplaca"); // Quito: 6:00-9:30, 16:00-20:00
-        }
         clips.add("v_careful");
         return clips;
     }

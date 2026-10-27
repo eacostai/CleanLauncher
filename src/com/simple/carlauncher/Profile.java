@@ -29,10 +29,6 @@ final class Profile {
         return prefs(c).getBoolean("voice", true);
     }
 
-    static boolean picoPlacaEnabled(Context c) {
-        return prefs(c).getBoolean("picoplaca", false);
-    }
-
     static boolean isSetupDone(Context c) {
         return prefs(c).getBoolean("setup_done", false);
     }
