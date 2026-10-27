@@ -12,6 +12,7 @@ Base: `main` en `e4170d4` («Build portable, CI y nuevas funciones»).
 | Pantalla principal | Barra superior con la foto propia del carro, el saludo y los indicadores reales (teléfono BT, red, clima, aceite). Reproductor a la izquierda; reloj, radio FM, Bluetooth y volumen a la derecha; dock con etiquetas. La foto incluida del Optra ya no se muestra. | `MainActivity.java`, `AndroidManifest.xml` (`ACCESS_NETWORK_STATE`), `res/drawable/ic_wifi.xml` (nuevo) |
 | Volver a la distribución original | A pedido, la pantalla principal vuelve a las tarjetas originales (saludo con foto y clima, reloj y aceite, radio FM, música, dock). Se revierte el commit anterior. | `MainActivity.java`, `AndroidManifest.xml`, `res/drawable/ic_wifi.xml` (borrado) |
 | Foto de la Sorento | Kia Sorento recortada y en gris grafito, con versión de faros encendidos para el efecto de luces. Reemplaza las fotos del Optra. | `res/drawable-nodpi/sorento*.png` (nuevas), `optra*.png` (borradas), `Profile.java`, `MainActivity.java` |
+| Música, mapa y velocímetro | La tarjeta de Radio FM pasa a ser la de Música: muestra lo que suena en cualquier fuente (Bluetooth, USB o apps como YouTube, YouTube Music o Spotify), con anterior, reproducir y siguiente, y una fila con las apps de música instaladas. Donde estaba la música va un mapa con tu posición y el botón «Navegar con Google Maps». Encima del auto, un velocímetro con la velocidad real del GPS. La radio FM sigue en el dock. | `MainActivity.java`, `MusicApps.java`, `MapView.java`, `SpeedView.java` (nuevos) |
 | Voz al abrir | El saludo por voz suena también al abrir el launcher (5 s después; máximo uno por minuto). Usa texto a voz para decir el nombre y, si la radio no tiene voz en español, los clips grabados. | `GreeterService.java`, `MainActivity.java` |
 
 Sin cambios: `RadioClient`, `BtClient`, `SoundClient`, `NowPlaying`, `MediaListener`, `MusicBean`, `BTDevice`,
@@ -20,6 +21,15 @@ Sin cambios: `RadioClient`, `BtClient`, `SoundClient`, `NowPlaying`, `MediaListe
 Se conserva todo lo que añadió `e4170d4` en la pantalla principal: la configuración inicial, los accesos
 para radios que no son NWD (radio, Bluetooth, ecualizador y ajustes de la propia radio), el cambio
 automático de tema con las luces y la recarga al cambiar el nombre o la foto.
+
+## Mapa y velocímetro
+
+- El velocímetro usa el GPS de la radio (una lectura por segundo). Muestra 0 por debajo de 2 km/h para no
+  marcar el temblor del GPS estacionado, y «sin GPS» si pasan 5 segundos sin señal.
+- Google Maps no se puede incrustar dentro de otra app sin una clave de Google Maps y los servicios de
+  Google Play, así que el mapa de la pantalla principal usa mapas de OpenStreetMap (CARTO) con tu posición
+  y dirección. Necesita internet para descargar las zonas nuevas y las guarda (hasta unos 60 MB) para
+  verlas sin conexión. Tocar el mapa o el botón abre Google Maps para navegar.
 
 ## Saludo por voz
 
