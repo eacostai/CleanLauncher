@@ -54,9 +54,9 @@ final class Profile {
         return f.exists() ? BitmapFactory.decodeFile(f.getAbsolutePath()) : null;
     }
 
-    /** Car pictures bundled only in the owner's personal build (0 when absent). */
+    /** Bundled car pictures: the owner's Kia Sorento, lights off / on (0 when absent). */
     static int bundledCar(Context c, boolean lights) {
-        return c.getResources().getIdentifier(lights ? "optra_lights" : "optra", "drawable", c.getPackageName());
+        return c.getResources().getIdentifier(lights ? "sorento_lights" : "sorento", "drawable", c.getPackageName());
     }
 
     // ---------- Device ----------

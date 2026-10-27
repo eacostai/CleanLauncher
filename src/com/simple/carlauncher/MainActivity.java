@@ -96,12 +96,12 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(dp(26), dp(24), dp(26), dp(22));
         weatherBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                Ui.pick(this, new int[]{0x993FA9FF, 0x667B4DFF}, new int[]{0xFF1E1E28, 0xFF121218}));
+                Ui.pick(this, new int[]{0x993FA9FF, 0x667B4DFF}, new int[]{Ui.ACCENT_DEEP, Ui.PANEL}));
         weatherBg.setCornerRadius(dp(18));
         weatherBg.setStroke(dp(1), 0x447FD8FF);
         card.setBackground(weatherBg);
 
-        TextView hello = left(Ui.text(this, Profile.welcome(this), 34, Color.WHITE));
+        TextView hello = left(Ui.text(this, Profile.welcome(this), 28, Color.WHITE));
         hello.setTypeface(Typeface.DEFAULT_BOLD);
         card.addView(hello);
 
@@ -193,7 +193,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         weatherCity.setText(w.city.isEmpty() ? "Sensación " + w.feelsLike + "°"
                 : w.city + " · Sensación " + w.feelsLike + "°");
         weatherExtra.setText("↑ " + w.max + "°   ↓ " + w.min + "°   💧 " + w.humidity + "%   " + w.wind + " km/h");
-        weatherBg.setColors(Ui.isDark(this) ? new int[]{0xFF1E1E28, 0xFF121218}
+        weatherBg.setColors(Ui.isDark(this) ? new int[]{Ui.ACCENT_DEEP, Ui.PANEL}
                 : w.isDay ? new int[]{0x993FA9FF, 0x667B4DFF} : new int[]{0x8C2A3A9E, 0x80261A6E});
     }
 
@@ -367,7 +367,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         FrameLayout card = new FrameLayout(this);
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
                 Ui.pick(this, new int[]{0xFF6A3BFF, 0xFFC04DE8, 0xFF2B1A7A},
-                        new int[]{0xFF2E1A55, 0xFF1A1030, 0xFF0A0A0E}));
+                        new int[]{Ui.ACCENT_DEEP, Ui.PANEL, Ui.BG}));
         bg.setCornerRadius(dp(18));
         card.setBackground(bg);
         card.setClipToOutline(true);
