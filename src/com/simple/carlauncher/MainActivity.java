@@ -101,7 +101,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         weatherBg.setStroke(dp(1), 0x447FD8FF);
         card.setBackground(weatherBg);
 
-        TextView hello = left(Ui.text(this, Profile.hello(this), 34, Color.WHITE));
+        TextView hello = left(Ui.text(this, Profile.welcome(this), 34, Color.WHITE));
         hello.setTypeface(Typeface.DEFAULT_BOLD);
         card.addView(hello);
 
@@ -180,8 +180,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
 
     private void updateGreeting() {
         int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
-        greeting.setText((h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches")
-                + " · Bienvenido");
+        greeting.setText(h < 12 ? "Buenos días" : h < 19 ? "Buenas tardes" : "Buenas noches");
     }
 
     private void showWeather(Weather w) {

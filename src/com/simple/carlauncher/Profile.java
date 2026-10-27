@@ -21,8 +21,11 @@ final class Profile {
         return c.getSharedPreferences("profile", Context.MODE_PRIVATE);
     }
 
+    /** Driver of this head unit; used until another name is saved in the setup screen. */
+    static final String DEFAULT_NAME = "Eddy";
+
     static String name(Context c) {
-        return prefs(c).getString("name", "").trim();
+        return prefs(c).getString("name", DEFAULT_NAME).trim();
     }
 
     static boolean voiceEnabled(Context c) {
@@ -33,10 +36,10 @@ final class Profile {
         return prefs(c).getBoolean("setup_done", false);
     }
 
-    /** "Hola, Ana" or just "Hola". */
-    static String hello(Context c) {
+    /** "¡Bienvenido, EDDY!" (name in capitals) or just "¡Bienvenido!". */
+    static String welcome(Context c) {
         String n = name(c);
-        return n.isEmpty() ? "Hola" : "Hola, " + n;
+        return n.isEmpty() ? "¡Bienvenido!" : "¡Bienvenido, " + n.toUpperCase(new java.util.Locale("es")) + "!";
     }
 
     // ---------- Car picture ----------

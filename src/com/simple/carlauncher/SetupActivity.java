@@ -82,7 +82,7 @@ public class SetupActivity extends Activity {
         name = new EditText(this);
         name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         name.setText(Profile.name(this));
-        name.setHint("Ej.: Ana");
+        name.setHint("Ej.: Eddy");
         name.setTextColor(Color.WHITE);
         name.setHintTextColor(0x66FFFFFF);
         name.setTextSize(20);
