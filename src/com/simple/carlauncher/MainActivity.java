@@ -111,11 +111,11 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         weatherBg.setStroke(dp(1), 0x447FD8FF);
         card.setBackground(weatherBg);
 
-        TextView hello = left(Ui.text(this, Profile.welcome(this), 28, Color.WHITE));
+        TextView hello = left(Ui.text(this, Profile.welcome(this), 34, Color.WHITE));
         hello.setTypeface(Typeface.DEFAULT_BOLD);
         card.addView(hello);
 
-        greeting = left(Ui.text(this, "", 17, 0xCCFFFFFF));
+        greeting = left(Ui.text(this, "", 19, 0xCCFFFFFF));
         greeting.setPadding(0, dp(4), 0, 0);
         card.addView(greeting);
 
@@ -141,18 +141,21 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
             car.setImageResource(R.drawable.ic_car);
             car.setColorFilter(0x40FFFFFF);
         }
-        carBox.addView(car, new FrameLayout.LayoutParams(-1, -1));
-        carBox.addView(carLights, new FrameLayout.LayoutParams(-1, -1));
+        // Car sits on the bottom of its box so the model name below touches it.
+        car.setAdjustViewBounds(true);
+        carLights.setAdjustViewBounds(true);
+        carBox.addView(car, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
+        carBox.addView(carLights, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
         carBox.setOnClickListener(v -> startActivity(new Intent(this, SetupActivity.class)));
         // Speedometer above the car, fed by the GPS.
         speedView = new SpeedView(this);
         speedView.setOnClickListener(v -> fixGps());
-        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-1, dp(88));
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-1, dp(116));
         slp.topMargin = dp(6);
         card.addView(speedView, slp);
 
         LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-1, 0, 1f);
-        clp.setMargins(dp(30), dp(4), dp(30), dp(8));
+        clp.setMargins(dp(30), dp(4), dp(30), 0);
         card.addView(carBox, clp);
 
         // Model name under the car, spaced out like the badge on the tailgate.
@@ -161,7 +164,8 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         model.setLetterSpacing(0.6f);
         model.setShadowLayer(dp(8), 0, 0, 0x991E90FF);
         LinearLayout.LayoutParams mlp = new LinearLayout.LayoutParams(-1, -2);
-        mlp.bottomMargin = dp(6);
+        mlp.topMargin = dp(2);
+        mlp.bottomMargin = dp(8);
         card.addView(model, mlp);
 
         // Compact weather row: icon + temperature + description, leaving room for the car.
@@ -286,7 +290,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         TextClock time = new TextClock(this);
         time.setFormat24Hour("HH:mm");
         time.setFormat12Hour("hh:mm");
-        time.setTextSize(40);
+        time.setTextSize(54);
         time.setTextColor(Color.WHITE);
         time.setTypeface(Typeface.DEFAULT_BOLD);
         time.setIncludeFontPadding(false);
@@ -296,7 +300,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         TextClock date = new TextClock(this);
         date.setFormat24Hour("EEEE, d 'de' MMMM");
         date.setFormat12Hour("EEEE, d 'de' MMMM");
-        date.setTextSize(14);
+        date.setTextSize(16);
         date.setTextColor(0xCCFFFFFF);
         date.setPadding(0, dp(6), 0, 0);
         date.setGravity(Gravity.CENTER);

@@ -19,6 +19,7 @@ public class SpeedView extends View {
     private final Paint arc = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint number = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint unit = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint note = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF r = new RectF();
     private float speed, shown;
     private boolean hasFix;
@@ -39,7 +40,12 @@ public class SpeedView extends View {
         number.setTextAlign(Paint.Align.CENTER);
         unit.setColor(0xB3FFFFFF);
         unit.setTextAlign(Paint.Align.CENTER);
-        unit.setTextSize(12 * c.getResources().getDisplayMetrics().scaledDensity);
+        unit.setTextSize(14 * c.getResources().getDisplayMetrics().scaledDensity);
+        unit.setLetterSpacing(0.15f);
+        unit.setTypeface(Typeface.DEFAULT_BOLD);
+        note.setColor(0x99FFFFFF);
+        note.setTextAlign(Paint.Align.CENTER);
+        note.setTextSize(11 * c.getResources().getDisplayMetrics().scaledDensity);
     }
 
     /** Speed in km/h from the GPS. */
@@ -60,12 +66,12 @@ public class SpeedView extends View {
     @Override
     protected void onSizeChanged(int w, int h, int ow, int oh) {
         float pad = arc.getStrokeWidth();
-        float size = Math.min(w, h * 1.25f) - pad * 2;
+        float size = Math.min(w, h) - pad * 2;
         r.set((w - size) / 2f, pad, (w + size) / 2f, pad + size);
         SweepGradient g = new SweepGradient(r.centerX(), r.centerY(),
                 new int[]{Ui.ACCENT_LIGHT, Ui.ACCENT, Ui.ACCENT_LIGHT}, null);
         arc.setShader(g);
-        number.setTextSize(size * 0.30f);
+        number.setTextSize(size * 0.32f);
     }
 
     @Override
@@ -78,8 +84,12 @@ public class SpeedView extends View {
         float level = Math.min(1f, shown / MAX_KMH);
         if (hasFix && level > 0.004f) c.drawArc(r, START, SWEEP * level, false, arc);
 
-        float cy = r.centerY() + number.getTextSize() * 0.35f;
-        c.drawText(hasFix ? String.valueOf(Math.round(shown)) : "--", r.centerX(), cy, number);
-        c.drawText(hasFix ? "km/h" : noFixLabel, r.centerX(), cy + unit.getTextSize() * 1.4f, unit);
+        // Always "<speed> KM/H"; without a GPS fix the number is dimmed and the reason shown below.
+        float cy = r.centerY() + number.getTextSize() * 0.3f;
+        number.setAlpha(hasFix ? 255 : 110);
+        c.drawText(String.valueOf(hasFix ? Math.round(shown) : 0), r.centerX(), cy, number);
+        float uy = cy + unit.getTextSize() * 1.35f;
+        c.drawText("KM/H", r.centerX(), uy, unit);
+        if (!hasFix) c.drawText(noFixLabel, r.centerX(), uy + note.getTextSize() * 1.5f, note);
     }
 }
