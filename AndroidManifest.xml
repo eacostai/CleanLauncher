@@ -11,7 +11,7 @@
 
     <application
         android:label="Inicio"
-        android:icon="@drawable/ic_apps"
+        android:icon="@mipmap/ic_launcher"
         android:theme="@style/LauncherTheme">
 
         <activity
