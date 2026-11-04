@@ -35,10 +35,10 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
     private final Handler handler = new Handler();
     private NowPlaying nowPlaying;
 
-    private TextView greeting, weatherTemp, weatherDesc;
+    private TextView greeting, weatherTemp, weatherDesc, weatherCity, weatherExtra;
     private ImageView weatherIcon;
+    private GradientDrawable weatherBg;
     private ImageView car, carLights;
-    private View beam;
     private boolean hasLightsImage;
     private TextView oilInfo;
     private boolean createdDark;
@@ -51,12 +51,15 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
     private long lastWeatherFetch;
 
     private ImageView art, playBtn;
-    private TextView songTitle, songArtist;
+    private TextView songSource, songTitle, songArtist;
     private LinearLayout musicApps;
+    private ImageView sourceIcon;
+    private LinearLayout progressRow;
     private LevelBar progress;
+    private TextView progressTime;
 
     private static final long GPS_STALE_MS = 5000;
-    private TextView speedNum, gpsNote;
+    private SpeedView speedView;
     private MapView map;
     private Location lastGps;
     private long lastGpsAt = -GPS_STALE_MS;
@@ -65,17 +68,24 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Tesla-style layout: car panel on the left, map filling the rest, fixed bar at the bottom.
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
+        root.setPadding(dp(16), dp(14), dp(16), dp(4));
         root.setBackground(Ui.background(this));
 
-        LinearLayout top = new LinearLayout(this);
-        top.addView(buildCarPanel(), new LinearLayout.LayoutParams(0, -1, 0.36f));
-        top.addView(buildMap(), new LinearLayout.LayoutParams(0, -1, 0.64f));
-        root.addView(top, new LinearLayout.LayoutParams(-1, 0, 1f));
+        LinearLayout cards = new LinearLayout(this);
+        cards.addView(buildWeatherCard(), weight(1.2f, 0));
 
-        root.addView(buildBar(), new LinearLayout.LayoutParams(-1, dp(76)));
+        LinearLayout middle = new LinearLayout(this);
+        middle.setOrientation(LinearLayout.VERTICAL);
+        middle.addView(buildClockCard(), vweight(0.62f, 0));
+        middle.addView(buildMusicCard(), vweight(1.38f, dp(12)));
+        cards.addView(middle, weight(1f, dp(12)));
+
+        cards.addView(buildMapCard(), weight(1.05f, dp(12)));
+        root.addView(cards, new LinearLayout.LayoutParams(-1, 0, 1f));
+
+        root.addView(buildDock(), new LinearLayout.LayoutParams(-1, dp(84)));
         setContentView(root);
 
         nowPlaying = NowPlaying.get(this);
@@ -93,72 +103,27 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         if (savedInstanceState == null) SplashActivity.show(this);
     }
 
-    // ---------- Left panel: speed, time, weather, car, greeting ----------
+    // ---------- Greeting + weather ----------
 
-    private View buildCarPanel() {
-        LinearLayout panel = new LinearLayout(this);
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setPadding(dp(24), dp(18), dp(20), dp(12));
+    private View buildWeatherCard() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setPadding(dp(26), dp(24), dp(26), dp(22));
+        weatherBg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                Ui.pick(this, new int[]{0x993FA9FF, 0x667B4DFF}, new int[]{Ui.PANEL, Ui.PANEL}));
+        weatherBg.setCornerRadius(dp(18));
+        weatherBg.setStroke(dp(1), Ui.isDark(this) ? Ui.STROKE : 0x447FD8FF);
+        card.setBackground(weatherBg);
 
-        // Speed (GPS) on the left, time and weather on the right.
-        LinearLayout head = new LinearLayout(this);
-        LinearLayout speedBox = new LinearLayout(this);
-        speedBox.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout speedRow = new LinearLayout(this);
-        speedRow.setGravity(Gravity.BOTTOM);
-        speedNum = left(Ui.text(this, "0", 64, Ui.text1(this)));
-        speedNum.setTypeface(Typeface.DEFAULT_BOLD);
-        speedNum.setIncludeFontPadding(false);
-        speedRow.addView(speedNum);
-        TextView unit = Ui.text(this, "KM/H", 16, Ui.text2(this));
-        unit.setTypeface(Typeface.DEFAULT_BOLD);
-        unit.setLetterSpacing(0.12f);
-        unit.setPadding(dp(8), 0, 0, dp(8));
-        speedRow.addView(unit);
-        speedBox.addView(speedRow);
-        gpsNote = left(Ui.text(this, "", 12, Ui.text2(this)));
-        speedBox.addView(gpsNote);
-        Ui.pressable(speedBox, 0.96f);
-        speedBox.setOnClickListener(v -> fixGps());
-        head.addView(speedBox, new LinearLayout.LayoutParams(0, -2, 1f));
+        TextView hello = left(Ui.text(this, Profile.welcome(this), 34, Color.WHITE));
+        hello.setTypeface(Typeface.DEFAULT_BOLD);
+        card.addView(hello);
 
-        LinearLayout side = new LinearLayout(this);
-        side.setOrientation(LinearLayout.VERTICAL);
-        side.setGravity(Gravity.END);
-        TextClock time = new TextClock(this);
-        time.setFormat24Hour("HH:mm");
-        time.setFormat12Hour("hh:mm");
-        time.setTextSize(30);
-        time.setTextColor(Ui.text1(this));
-        time.setIncludeFontPadding(false);
-        side.addView(time);
-        TextClock date = new TextClock(this);
-        date.setFormat24Hour("EEE d MMM");
-        date.setFormat12Hour("EEE d MMM");
-        date.setTextSize(13);
-        date.setTextColor(Ui.text2(this));
-        side.addView(date);
-        LinearLayout weather = new LinearLayout(this);
-        weather.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
-        weatherIcon = new ImageView(this);
-        weatherIcon.setImageResource(R.drawable.ic_w_cloud);
-        weatherIcon.setColorFilter(0xFFFFE07A);
-        weather.addView(weatherIcon, new LinearLayout.LayoutParams(dp(20), dp(20)));
-        weatherTemp = Ui.text(this, "--°", 15, Ui.text1(this));
-        weatherTemp.setPadding(dp(6), 0, dp(6), 0);
-        weather.addView(weatherTemp);
-        weatherDesc = Ui.text(this, "", 13, Ui.text2(this));
-        weather.addView(weatherDesc);
-        LinearLayout.LayoutParams wlp = new LinearLayout.LayoutParams(-2, -2);
-        wlp.topMargin = dp(4);
-        side.addView(weather, wlp);
-        Ui.pressable(side, 0.96f);
-        side.setOnClickListener(v -> fetchWeather(true));
-        head.addView(side, new LinearLayout.LayoutParams(-2, -2));
-        panel.addView(head);
+        greeting = left(Ui.text(this, "", 19, 0xCCFFFFFF));
+        greeting.setPadding(0, dp(4), 0, 0);
+        card.addView(greeting);
 
-        // The user's own car (photo with background removed). When the car's lights are on the
-        // lights-on photo fades in, with the beam lighting the floor in front of it.
+        // The user's own car (photo with background removed); headlights glow when the car's lights are on.
         // Own photo (shared builds) > bundled car with lights-on variant (owner's build) > icon.
         FrameLayout carBox = new FrameLayout(this);
         car = new ImageView(this);
@@ -190,102 +155,94 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
             if (on) handler.postDelayed(() -> showCarLights(carLightsOn()), 5000);
             return true;
         });
+        // Speedometer above the car, fed by the GPS.
+        speedView = new SpeedView(this);
+        speedView.setOnClickListener(v -> fixGps());
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(-1, dp(116));
+        slp.topMargin = dp(2);
+        card.addView(speedView, slp);
 
-        beam = new View(this);
-        GradientDrawable glow = new GradientDrawable();
-        glow.setGradientType(GradientDrawable.RADIAL_GRADIENT);
-        glow.setShape(GradientDrawable.OVAL);
-        glow.setColors(new int[]{0x66FFF4D6, 0x22FFF4D6, 0x00FFF4D6});
-        beam.setBackground(glow);
-        beam.setAlpha(0f);
-        // Floor shadow under the car, always on.
-        View floor = new View(this);
-        GradientDrawable shade = new GradientDrawable();
-        shade.setGradientType(GradientDrawable.RADIAL_GRADIENT);
-        shade.setShape(GradientDrawable.OVAL);
-        shade.setColors(new int[]{0x99000000, 0x00000000});
-        floor.setBackground(shade);
+        // Car + model name as one group in the space between speedometer and weather.
+        FrameLayout carArea = new FrameLayout(this);
+        carArea.addView(carBox, new FrameLayout.LayoutParams(0, 0));
 
-        // Model badge and greeting under the car.
-        LinearLayout label = new LinearLayout(this);
-        label.setOrientation(LinearLayout.VERTICAL);
-        label.setGravity(Gravity.CENTER_HORIZONTAL);
-        TextView model = Ui.text(this, Profile.MODEL, 18, Ui.text1(this));
+        // Model name under the car, spaced out like the badge on the tailgate.
+        TextView model = Ui.text(this, Profile.MODEL, 15, 0xE6FFFFFF);
         model.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
         model.setLetterSpacing(0.6f);
-        label.addView(model);
-        TextView hello = Ui.text(this, Profile.welcome(this), 22, Ui.text1(this));
-        hello.setTypeface(Typeface.DEFAULT_BOLD);
-        hello.setPadding(0, dp(8), 0, 0);
-        label.addView(hello);
-        greeting = Ui.text(this, "", 15, Ui.text2(this));
-        label.addView(greeting);
-
-        FrameLayout carArea = new FrameLayout(this);
-        carArea.addView(floor, new FrameLayout.LayoutParams(0, 0));
-        carArea.addView(beam, new FrameLayout.LayoutParams(0, 0));
-        carArea.addView(carBox, new FrameLayout.LayoutParams(0, 0));
-        carArea.addView(label, new FrameLayout.LayoutParams(-1, -2));
+        model.setShadowLayer(dp(8), 0, 0, 0x993E82F7);
+        carArea.addView(model, new FrameLayout.LayoutParams(-1, -2));
         carArea.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
-            if (r - l != or - ol || b - t != ob - ot) carArea.post(() -> placeCar(carArea, carBox, floor, label));
+            if (r - l != or - ol || b - t != ob - ot) carArea.post(() -> placeCar(carArea, carBox, model));
         });
-        panel.addView(carArea, new LinearLayout.LayoutParams(-1, 0, 1f));
+        card.addView(carArea, new LinearLayout.LayoutParams(-1, 0, 1f));
 
-        // Oil status and the music apps of the head unit.
-        LinearLayout chips = new LinearLayout(this);
-        chips.setGravity(Gravity.CENTER_VERTICAL);
-        oilInfo = Ui.text(this, "", 13, Ui.text1(this));
-        oilInfo.setPadding(dp(14), dp(8), dp(14), dp(8));
-        oilBg = new GradientDrawable();
-        oilBg.setCornerRadius(dp(18));
-        oilInfo.setBackground(oilBg);
-        Ui.pressable(oilInfo, 0.92f);
-        oilInfo.setOnClickListener(v -> startActivity(new Intent(this, OilActivity.class)));
-        chips.addView(oilInfo);
-        musicApps = new LinearLayout(this);
-        musicApps.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
-        chips.addView(musicApps, new LinearLayout.LayoutParams(0, dp(40), 1f));
-        panel.addView(chips, new LinearLayout.LayoutParams(-1, -2));
-        fillMusicApps();
-        return panel;
+        // Compact weather row: icon + temperature + description, leaving room for the car.
+        LinearLayout now = new LinearLayout(this);
+        now.setGravity(Gravity.CENTER_VERTICAL);
+        weatherIcon = new ImageView(this);
+        weatherIcon.setImageResource(R.drawable.ic_w_cloud);
+        weatherIcon.setColorFilter(0xFFFFE07A);
+        now.addView(weatherIcon, new LinearLayout.LayoutParams(dp(54), dp(54)));
+        weatherTemp = left(Ui.text(this, "--°", 50, Color.WHITE));
+        weatherTemp.setTypeface(Typeface.create("sans-serif-light", Typeface.NORMAL));
+        weatherTemp.setIncludeFontPadding(false);
+        weatherTemp.setPadding(dp(10), 0, dp(12), 0);
+        now.addView(weatherTemp);
+
+        LinearLayout texts = new LinearLayout(this);
+        texts.setOrientation(LinearLayout.VERTICAL);
+        weatherDesc = left(Ui.text(this, "Cargando el clima…", 16, Color.WHITE));
+        weatherDesc.setSingleLine(false);
+        weatherDesc.setMaxLines(2);
+        texts.addView(weatherDesc);
+        weatherCity = left(Ui.text(this, "", 13, 0xB3FFFFFF));
+        weatherCity.setPadding(0, dp(2), 0, 0);
+        texts.addView(weatherCity);
+        now.addView(texts, new LinearLayout.LayoutParams(0, -2, 1f));
+        card.addView(now);
+
+        weatherExtra = left(Ui.text(this, "", 14, 0xE6FFFFFF));
+        weatherExtra.setPadding(dp(14), dp(8), dp(14), dp(8));
+        GradientDrawable chip = new GradientDrawable();
+        chip.setColor(0x26FFFFFF);
+        chip.setCornerRadius(dp(20));
+        weatherExtra.setBackground(chip);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-2, -2);
+        lp.topMargin = dp(10);
+        card.addView(weatherExtra, lp);
+
+        Ui.pressable(card, 0.98f);
+        card.setOnClickListener(v -> fetchWeather(true));
+        return card;
     }
 
     /**
-     * Sizes the car as large as fits the panel width and places it a little above the middle with
-     * the badge and greeting just below; the floor shadow and the headlight beam follow it.
+     * Sizes the car as large as fits (nearly the card width) and places it with the model name
+     * just below, a little above the middle: less space under the speedometer than over the weather.
      */
-    private void placeCar(FrameLayout area, View carBox, View floor, View label) {
+    private void placeCar(FrameLayout area, View carBox, TextView model) {
         int w = area.getWidth(), h = area.getHeight();
         if (w == 0 || h == 0) return;
         android.graphics.drawable.Drawable d = car.getDrawable();
         float ratio = d != null && d.getIntrinsicWidth() > 0
                 ? d.getIntrinsicHeight() / (float) d.getIntrinsicWidth() : 0.56f;
-        label.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+        model.measure(View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
                 View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED));
-        int lh = label.getMeasuredHeight(), gap = dp(10);
-        int cw = w, ch = Math.round(cw * ratio);
-        int max = Math.round((h - lh - gap) * 0.92f);
+        int mh = model.getMeasuredHeight(), gap = dp(2);
+        int cw = w - dp(12) * 2, ch = Math.round(cw * ratio);
+        int max = Math.round((h - mh - gap) * 0.92f);
         if (ch > max) {
             ch = max;
             cw = Math.round(ch / ratio);
         }
-        int top = Math.round((h - ch - lh - gap) * 0.4f);
-        int left = (w - cw) / 2;
-        FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(cw, ch, Gravity.TOP | Gravity.START);
-        clp.setMargins(left, top, 0, 0);
+        int top = Math.round((h - ch - mh - gap) * 0.35f);
+        FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(cw, ch, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        clp.topMargin = top;
         carBox.setLayoutParams(clp);
-        FrameLayout.LayoutParams flp = new FrameLayout.LayoutParams(Math.round(cw * 0.95f), Math.round(ch * 0.22f),
-                Gravity.TOP | Gravity.START);
-        flp.setMargins(left + Math.round(cw * 0.03f), top + Math.round(ch * 0.86f), 0, 0);
-        floor.setLayoutParams(flp);
-        // The car faces front-left: light the floor ahead of the headlights.
-        FrameLayout.LayoutParams blp = new FrameLayout.LayoutParams(Math.round(cw * 0.8f), Math.round(ch * 0.45f),
-                Gravity.TOP | Gravity.START);
-        blp.setMargins(left - Math.round(cw * 0.25f), top + Math.round(ch * 0.62f), 0, 0);
-        beam.setLayoutParams(blp);
-        FrameLayout.LayoutParams llp = new FrameLayout.LayoutParams(-1, -2, Gravity.TOP);
-        llp.topMargin = top + ch + gap;
-        label.setLayoutParams(llp);
+        FrameLayout.LayoutParams mlp = new FrameLayout.LayoutParams(-1, -2, Gravity.TOP);
+        mlp.topMargin = top + ch + gap;
+        model.setLayoutParams(mlp);
     }
 
     private void updateGreeting() {
@@ -297,9 +254,14 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         if (w == null) return;
         weatherIcon.setImageResource(w.icon());
         weatherIcon.setColorFilter(w.icon() == R.drawable.ic_w_sun ? 0xFFFFD25A
-                : w.icon() == R.drawable.ic_w_moon ? 0xFFDDE4FF : Ui.text1(this));
+                : w.icon() == R.drawable.ic_w_moon ? 0xFFDDE4FF : Color.WHITE);
         weatherTemp.setText(w.temp + "°");
         weatherDesc.setText(w.description());
+        weatherCity.setText(w.city.isEmpty() ? "Sensación " + w.feelsLike + "°"
+                : w.city + " · Sensación " + w.feelsLike + "°");
+        weatherExtra.setText("↑ " + w.max + "°   ↓ " + w.min + "°   💧 " + w.humidity + "%   " + w.wind + " km/h");
+        weatherBg.setColors(Ui.isDark(this) ? new int[]{Ui.PANEL, Ui.PANEL}
+                : w.isDay ? new int[]{0x993FA9FF, 0x667B4DFF} : new int[]{0x8C2A3A9E, 0x80261A6E});
     }
 
     private void fetchWeather(boolean force) {
@@ -341,173 +303,152 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         if (!hasLightsImage) return;
         carLights.animate().alpha(on ? 1f : 0f).setDuration(600).start();
         car.animate().alpha(on ? 0f : 1f).setDuration(600).start();
-        beam.animate().alpha(on ? 1f : 0f).setDuration(900).start();
     }
 
     private void updateOil() {
         if (!Odometer.isConfigured(this)) {
             oilInfo.setText("Aceite: configurar");
-            oilBg.setColor(Ui.fill(this));
+            oilBg.setColor(0x26FFFFFF);
             return;
         }
         int left = Odometer.remainingKm(this);
         oilInfo.setText(left < 0 ? "Aceite: ¡ya toca el cambio!" : "Aceite: faltan " + OilActivity.fmt(left) + " km");
-        oilBg.setColor(left < 0 ? 0xCCE53935 : left <= Odometer.WARN_KM ? 0xCCFF9800 : Ui.fill(this));
+        oilBg.setColor(left < 0 ? 0xCCE53935 : left <= Odometer.WARN_KM ? 0xCCFF9800 : 0x26FFFFFF);
     }
 
-    // ---------- Map (fills the right side) ----------
+    // ---------- Clock ----------
 
-    private View buildMap() {
-        FrameLayout box = new FrameLayout(this);
-        map = new MapView(this);
-        box.addView(map, new FrameLayout.LayoutParams(-1, -1));
+    private View buildClockCard() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER);
+        card.setBackground(Ui.card(this));
 
-        // Search pill, like the car's own navigation: opens Google Maps to type the destination.
-        TextView search = left(Ui.text(this, "¿A dónde vamos?", 17, Ui.text2(this)));
-        search.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_search, 0, 0, 0);
-        search.setCompoundDrawablePadding(dp(12));
-        search.setCompoundDrawableTintList(android.content.res.ColorStateList.valueOf(Ui.isDark(this) ? Ui.TEXT_2 : 0xFF5F6670));
-        search.setGravity(Gravity.CENTER_VERTICAL);
-        search.setPadding(dp(18), 0, dp(24), 0);
-        GradientDrawable sbg = new GradientDrawable();
-        sbg.setColor(Ui.isDark(this) ? 0xF2151A21 : 0xF2FFFFFF);
-        sbg.setCornerRadius(dp(26));
-        search.setBackground(sbg);
-        search.setElevation(dp(6));
-        if (!Ui.isDark(this)) search.setTextColor(0xFF5F6670);
-        Ui.pressable(search, 0.97f);
-        search.setOnClickListener(v -> openMapsSearch());
-        FrameLayout.LayoutParams slp = new FrameLayout.LayoutParams(dp(340), dp(52), Gravity.TOP | Gravity.START);
-        slp.setMargins(dp(18), dp(18), 0, 0);
-        box.addView(search, slp);
+        TextClock time = new TextClock(this);
+        time.setFormat24Hour("HH:mm");
+        time.setFormat12Hour("hh:mm");
+        time.setTextSize(54);
+        time.setTextColor(Color.WHITE);
+        time.setTypeface(Typeface.DEFAULT_BOLD);
+        time.setIncludeFontPadding(false);
+        time.setGravity(Gravity.CENTER);
+        card.addView(time);
 
-        TextView go = Ui.text(this, "Navegar", 15, Color.WHITE);
-        go.setTypeface(Typeface.DEFAULT_BOLD);
-        go.setCompoundDrawablesWithIntrinsicBounds(R.drawable.ic_nav, 0, 0, 0);
-        go.setCompoundDrawablePadding(dp(8));
-        go.setPadding(dp(18), dp(12), dp(20), dp(12));
-        GradientDrawable gbg = new GradientDrawable();
-        gbg.setColor(Ui.ACCENT);
-        gbg.setCornerRadius(dp(24));
-        go.setBackground(gbg);
-        go.setElevation(dp(6));
-        Ui.pressable(go, 0.94f);
-        go.setOnClickListener(v -> openMaps());
-        FrameLayout.LayoutParams glp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
-        glp.setMargins(0, 0, dp(18), dp(18));
-        box.addView(go, glp);
-        return box;
+        TextClock date = new TextClock(this);
+        date.setFormat24Hour("EEEE, d 'de' MMMM");
+        date.setFormat12Hour("EEEE, d 'de' MMMM");
+        date.setTextSize(16);
+        date.setTextColor(0xCCFFFFFF);
+        date.setPadding(0, dp(6), 0, 0);
+        date.setGravity(Gravity.CENTER);
+        card.addView(date);
+
+        // Oil-change status pill; opens the oil screen.
+        oilInfo = Ui.text(this, "", 13, Color.WHITE);
+        oilInfo.setPadding(dp(14), dp(6), dp(14), dp(6));
+        oilBg = new GradientDrawable();
+        oilBg.setCornerRadius(dp(14));
+        oilInfo.setBackground(oilBg);
+        Ui.pressable(oilInfo, 0.92f);
+        oilInfo.setOnClickListener(v -> startActivity(new Intent(this, OilActivity.class)));
+        LinearLayout.LayoutParams olp = new LinearLayout.LayoutParams(-2, -2);
+        olp.topMargin = dp(8);
+        card.addView(oilInfo, olp);
+
+        Ui.pressable(card, 0.97f);
+        card.setOnClickListener(v -> openSettings());
+        return card;
     }
 
-    private void openMapsSearch() {
-        Intent i = new Intent(Intent.ACTION_VIEW, android.net.Uri.parse("geo:0,0?q="))
-                .setPackage("com.google.android.apps.maps");
-        if (!safeStart(i)) openMaps();
-    }
+    // ---------- Music (any source: Bluetooth, USB or any music app) ----------
 
-    // ---------- Bottom bar: apps, mini player, shortcuts ----------
-
-    private View buildBar() {
-        LinearLayout bar = new LinearLayout(this);
-        bar.setGravity(Gravity.CENTER_VERTICAL);
-        bar.setPadding(dp(14), 0, dp(10), 0);
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Ui.isDark(this) ? 0xFF08090B : 0x33000000);
-        bg.setStroke(dp(1), Ui.isDark(this) ? 0xFF1F242C : 0x33FFFFFF);
-        bar.setBackground(bg);
-
-        RingView ring = new RingView(this);
-        Ui.pressable(ring, 0.88f);
-        ring.setOnClickListener(v -> startActivity(new Intent(this, AppsActivity.class)));
-        bar.addView(ring, new LinearLayout.LayoutParams(dp(58), dp(58)));
-
-        bar.addView(buildPlayer(), new LinearLayout.LayoutParams(0, dp(58), 1.25f));
-
-        LinearLayout shortcuts = new LinearLayout(this);
-        shortcuts.setGravity(Gravity.CENTER_VERTICAL | Gravity.END);
-        shortcuts.addView(barIcon(R.drawable.ic_radio, this::openRadio), weight(1f, 0));
-        shortcuts.addView(barIcon(R.drawable.ic_bluetooth, this::openBluetooth), weight(1f, 0));
-        shortcuts.addView(barIcon(R.drawable.ic_settings, this::openEqualizer), weight(1f, 0));
-        shortcuts.addView(barIcon(R.drawable.ic_w_moon,
-                () -> startActivity(new Intent(this, ScreenOffActivity.class))), weight(1f, 0));
-        shortcuts.addView(barIcon(R.drawable.ic_gear, this::openSettings), weight(1f, 0));
-        bar.addView(shortcuts, new LinearLayout.LayoutParams(0, -1, 1f));
-        return bar;
-    }
-
-    /** Mini player for whatever plays (Bluetooth, USB or any app), controls always at hand. */
-    private View buildPlayer() {
-        LinearLayout p = new LinearLayout(this);
-        p.setGravity(Gravity.CENTER_VERTICAL);
-        p.setPadding(dp(6), dp(5), dp(10), dp(5));
-        GradientDrawable bg = new GradientDrawable();
-        bg.setColor(Ui.isDark(this) ? Ui.PANEL : 0x26FFFFFF);
-        bg.setCornerRadius(dp(14));
-        p.setBackground(bg);
+    private View buildMusicCard() {
+        FrameLayout card = new FrameLayout(this);
+        GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                Ui.pick(this, new int[]{0xFF6A3BFF, 0xFFC04DE8, 0xFF2B1A7A},
+                        new int[]{Ui.PANEL, Ui.PANEL, Ui.PANEL}));
+        bg.setCornerRadius(dp(18));
+        card.setBackground(bg);
+        card.setClipToOutline(true);
 
         art = new ImageView(this);
         art.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        art.setClipToOutline(true);
-        GradientDrawable artBg = new GradientDrawable();
-        artBg.setColor(Ui.ACCENT_DEEP);
-        artBg.setCornerRadius(dp(10));
-        art.setBackground(artBg);
-        p.addView(art, new LinearLayout.LayoutParams(dp(48), dp(48)));
+        card.addView(art, new FrameLayout.LayoutParams(-1, -1));
 
-        LinearLayout texts = new LinearLayout(this);
-        texts.setOrientation(LinearLayout.VERTICAL);
-        texts.setPadding(dp(12), 0, dp(8), 0);
-        songTitle = left(Ui.text(this, "", 15, Ui.text1(this)));
+        View shade = new View(this);
+        shade.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0x33000000, 0x66000000, 0xE6100A30}));
+        card.addView(shade, new FrameLayout.LayoutParams(-1, -1));
+
+        LinearLayout box = new LinearLayout(this);
+        box.setOrientation(LinearLayout.VERTICAL);
+        box.setPadding(dp(14), dp(12), dp(14), dp(10));
+
+        LinearLayout head = new LinearLayout(this);
+        head.setGravity(Gravity.CENTER_VERTICAL);
+        sourceIcon = new ImageView(this);
+        head.addView(sourceIcon, new LinearLayout.LayoutParams(dp(24), dp(24)));
+        songSource = left(Ui.text(this, "MÚSICA", 14, Color.WHITE));
+        songSource.setTypeface(Typeface.DEFAULT_BOLD);
+        songSource.setLetterSpacing(0.08f);
+        songSource.setPadding(dp(8), 0, 0, 0);
+        head.addView(songSource, new LinearLayout.LayoutParams(0, -2, 1f));
+        box.addView(head);
+
+        songTitle = left(Ui.text(this, "", 19, Color.WHITE));
         songTitle.setTypeface(Typeface.DEFAULT_BOLD);
-        texts.addView(songTitle);
-        songArtist = left(Ui.text(this, "", 12, Ui.text2(this)));
-        texts.addView(songArtist);
+        songTitle.setPadding(0, dp(8), 0, 0);
+        box.addView(songTitle);
+        songArtist = left(Ui.text(this, "", 14, 0xCCFFFFFF));
+        box.addView(songArtist);
+
+        // Progress of the song (apps that report it): thin bar with elapsed / total time.
+        progressRow = new LinearLayout(this);
+        progressRow.setGravity(Gravity.CENTER_VERTICAL);
         progress = new LevelBar(this);
-        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(-1, dp(3));
-        plp.topMargin = dp(5);
-        texts.addView(progress, plp);
-        p.addView(texts, new LinearLayout.LayoutParams(0, -2, 1f));
+        progressRow.addView(progress, new LinearLayout.LayoutParams(0, dp(4), 1f));
+        progressTime = Ui.text(this, "", 12, 0xCCFFFFFF);
+        progressTime.setPadding(dp(10), 0, 0, 0);
+        progressRow.addView(progressTime);
+        LinearLayout.LayoutParams prl = new LinearLayout.LayoutParams(-1, dp(22));
+        prl.topMargin = dp(6);
+        box.addView(progressRow, prl);
 
-        p.addView(Ui.iconButton(this, R.drawable.ic_prev, 40, false, () -> nowPlaying.skip(false)),
-                new LinearLayout.LayoutParams(dp(40), dp(40)));
-        playBtn = Ui.iconButton(this, R.drawable.ic_play, 46, true, () -> nowPlaying.playPause());
-        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(dp(46), dp(46));
-        blp.setMargins(dp(8), 0, dp(8), 0);
-        p.addView(playBtn, blp);
-        p.addView(Ui.iconButton(this, R.drawable.ic_next, 40, false, () -> nowPlaying.skip(true)),
-                new LinearLayout.LayoutParams(dp(40), dp(40)));
+        LinearLayout controls = new LinearLayout(this);
+        controls.setGravity(Gravity.CENTER);
+        controls.addView(Ui.iconButton(this, R.drawable.ic_prev, 46, false, () -> nowPlaying.skip(false)),
+                new LinearLayout.LayoutParams(dp(46), dp(46)));
+        playBtn = Ui.iconButton(this, R.drawable.ic_play, 58, true, () -> nowPlaying.playPause());
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(dp(58), dp(58));
+        plp.setMargins(dp(16), 0, dp(16), 0);
+        controls.addView(playBtn, plp);
+        controls.addView(Ui.iconButton(this, R.drawable.ic_next, 46, false, () -> nowPlaying.skip(true)),
+                new LinearLayout.LayoutParams(dp(46), dp(46)));
+        LinearLayout.LayoutParams ctl = new LinearLayout.LayoutParams(-1, 0, 1f);
+        box.addView(controls, ctl);
 
-        Ui.pressable(texts, 0.97f);
-        texts.setOnClickListener(v -> openMusic());
-        art.setOnClickListener(v -> openMusic());
-        FrameLayout wrap = new FrameLayout(this);
-        wrap.addView(p, new FrameLayout.LayoutParams(-1, -1));
-        wrap.setPadding(dp(12), 0, dp(12), 0);
-        return wrap;
-    }
+        // Shortcuts to the music apps on the head unit (YouTube, YouTube Music, Spotify, USB player…).
+        musicApps = new LinearLayout(this);
+        musicApps.setGravity(Gravity.CENTER);
+        box.addView(musicApps, new LinearLayout.LayoutParams(-1, dp(44)));
+        fillMusicApps();
 
-    private View barIcon(int icon, Runnable action) {
-        FrameLayout f = new FrameLayout(this);
-        ImageView iv = new ImageView(this);
-        iv.setImageResource(icon);
-        iv.setColorFilter(Ui.text1(this));
-        iv.setPadding(dp(12), dp(12), dp(12), dp(12));
-        f.addView(iv, new FrameLayout.LayoutParams(dp(52), dp(52), Gravity.CENTER));
-        Ui.pressable(iv, 0.85f);
-        iv.setOnClickListener(v -> action.run());
-        return f;
+        card.addView(box, new FrameLayout.LayoutParams(-1, -1));
+        Ui.pressable(card, 0.98f);
+        card.setOnClickListener(v -> openMusic());
+        return card;
     }
 
     private void fillMusicApps() {
         musicApps.removeAllViews();
         java.util.List<MusicApps.App> apps = MusicApps.find(this);
-        int shown = Math.min(apps.size(), apps.size() > 4 ? 3 : 4);
+        int shown = Math.min(apps.size(), apps.size() > 5 ? 4 : 5);
         for (int i = 0; i < shown; i++) {
             MusicApps.App a = apps.get(i);
             ImageView iv = new ImageView(this);
             iv.setImageDrawable(a.icon);
             iv.setPadding(dp(5), dp(5), dp(5), dp(5));
-            iv.setBackground(Ui.circle(Ui.fill(this)));
+            iv.setBackground(Ui.circle(0x33FFFFFF));
             iv.setContentDescription(a.label);
             Ui.pressable(iv, 0.85f);
             iv.setOnClickListener(v -> MusicApps.play(this, a));
@@ -515,14 +456,14 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
                 MusicApps.launch(this, a);
                 return true;
             });
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(38), dp(38));
-            lp.setMargins(dp(6), 0, 0, 0);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(40), dp(40));
+            lp.setMargins(dp(5), 0, dp(5), 0);
             musicApps.addView(iv, lp);
         }
         if (apps.size() > shown) {
-            ImageView more = Ui.iconButton(this, R.drawable.ic_apps, 38, false, () -> MusicApps.choose(this, apps));
-            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(38), dp(38));
-            lp.setMargins(dp(6), 0, 0, 0);
+            ImageView more = Ui.iconButton(this, R.drawable.ic_apps, 40, false, () -> MusicApps.choose(this, apps));
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(dp(40), dp(40));
+            lp.setMargins(dp(5), 0, dp(5), 0);
             musicApps.addView(more, lp);
         }
     }
@@ -617,19 +558,13 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         if (kmh < 2) kmh = 0; // GPS jitter while parked
         lastGps = l;
         lastGpsAt = SystemClock.elapsedRealtime();
-        speedNum.setText(String.valueOf(Math.round(kmh)));
-        speedNum.setAlpha(1f);
-        gpsNote.setText("");
+        speedView.setSpeed(kmh);
         map.setSpeed(kmh);
     }
 
     private final Runnable gpsWatch = new Runnable() {
         public void run() {
-            if (SystemClock.elapsedRealtime() - lastGpsAt > GPS_STALE_MS) {
-                speedNum.setText("0");
-                speedNum.setAlpha(0.45f);
-                gpsNote.setText(gpsProblem());
-            }
+            if (SystemClock.elapsedRealtime() - lastGpsAt > GPS_STALE_MS) speedView.setNoFix(gpsProblem());
             handler.postDelayed(this, 2000);
         }
     };
@@ -687,48 +622,62 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         NowPlaying.Source s = nowPlaying.current();
         NowPlaying.Track t = s == null ? null : nowPlaying.track(s);
         boolean empty = t == null || t.title.isEmpty();
-        String source = s == null ? "" : nowPlaying.label(s);
+        songSource.setText(s == null ? "MÚSICA" : nowPlaying.label(s).toUpperCase());
         songTitle.setText(empty ? "Nada sonando" : t.title);
-        songArtist.setText(empty ? "Toca para elegir la música"
-                : t.artist.isEmpty() ? source : t.artist + " · " + source);
+        songArtist.setText(empty ? "Elige una app de música" : t.artist);
         if (!nowPlaying.hasAccess() && s != NowPlaying.Source.BT && s != NowPlaying.Source.LOCAL) {
-            // Without notification access the player cannot see YouTube, Spotify…
+            // Without notification access the card cannot see YouTube, Spotify…
             songTitle.setText("Permite ver la música");
             songArtist.setText("Toca aquí para activarlo");
         }
-        playBtn.setImageResource(t != null && t.playing ? R.drawable.ic_pause : R.drawable.ic_play);
 
-        // Album art; else the playing app's icon; else a note or Bluetooth symbol.
+        // The playing app's own icon in the header; a note or Bluetooth symbol otherwise.
         android.graphics.drawable.Drawable appIcon = null;
         if (s == NowPlaying.Source.APP) {
             try {
                 appIcon = getPackageManager().getApplicationIcon(nowPlaying.appPackage());
             } catch (Exception ignored) { }
         }
-        if (t != null && t.art != null) {
-            art.setPadding(0, 0, 0, 0);
-            art.clearColorFilter();
-            art.setImageBitmap(t.art);
-        } else if (appIcon != null) {
-            art.setPadding(dp(6), dp(6), dp(6), dp(6));
-            art.clearColorFilter();
-            art.setImageDrawable(appIcon);
+        if (appIcon != null) {
+            sourceIcon.clearColorFilter();
+            sourceIcon.setImageDrawable(appIcon);
         } else {
-            art.setPadding(dp(12), dp(12), dp(12), dp(12));
-            art.setImageResource(s == NowPlaying.Source.BT ? R.drawable.ic_bluetooth : R.drawable.ic_music);
-            art.setColorFilter(Color.WHITE);
+            sourceIcon.setImageResource(s == NowPlaying.Source.BT ? R.drawable.ic_bluetooth : R.drawable.ic_music);
+            sourceIcon.setColorFilter(Ui.ACCENT_LIGHT);
         }
         updateProgress();
+        playBtn.setImageResource(t != null && t.playing ? R.drawable.ic_pause : R.drawable.ic_play);
+
+        if (t != null && t.art != null) {
+            art.setPadding(0, 0, 0, 0);
+            art.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            art.clearColorFilter();
+            art.setAlpha(1f);
+            art.setImageBitmap(t.art);
+        } else {
+            art.setPadding(dp(70), dp(36), dp(70), dp(110));
+            art.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            art.setImageResource(s == NowPlaying.Source.BT ? R.drawable.ic_bluetooth : R.drawable.ic_music);
+            art.setColorFilter(Color.WHITE);
+            art.setAlpha(0.25f);
+        }
     }
 
     private void updateProgress() {
         NowPlaying.Source s = nowPlaying.current();
         NowPlaying.Track t = s == null ? null : nowPlaying.track(s);
         boolean show = s == NowPlaying.Source.APP && t != null && t.duration > 0;
-        progress.setVisibility(show ? View.VISIBLE : View.INVISIBLE);
-        if (show) progress.setLevel(t.positionNow() / (float) t.duration);
+        progressRow.setVisibility(show ? View.VISIBLE : View.INVISIBLE);
+        if (!show) return;
+        long pos = t.positionNow();
+        progress.setLevel(pos / (float) t.duration);
+        progressTime.setText(clock(pos) + " / " + clock(t.duration));
     }
 
+    private static String clock(long ms) {
+        long sec = ms / 1000;
+        return sec / 60 + ":" + (sec % 60 < 10 ? "0" : "") + sec % 60;
+    }
 
     private final Runnable progressTick = new Runnable() {
         public void run() {
@@ -736,6 +685,29 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
             handler.postDelayed(this, 1000);
         }
     };
+
+    // ---------- Dock ----------
+
+    private View buildDock() {
+        LinearLayout dock = new LinearLayout(this);
+        dock.setGravity(Gravity.CENTER_VERTICAL);
+        dock.addView(dockIcon(R.drawable.ic_compass, this::openMaps), weight(1f, 0));
+        dock.addView(dockIcon(R.drawable.ic_bluetooth, this::openBluetooth), weight(1f, 0));
+        dock.addView(dockIcon(R.drawable.ic_radio, this::openRadio), weight(1f, 0));
+
+        FrameLayout center = new FrameLayout(this);
+        RingView ring = new RingView(this);
+        center.addView(ring, new FrameLayout.LayoutParams(dp(64), dp(64), Gravity.CENTER));
+        Ui.pressable(ring, 0.88f);
+        ring.setOnClickListener(v -> startActivity(new Intent(this, AppsActivity.class)));
+        dock.addView(center, weight(1f, 0));
+
+        dock.addView(dockIcon(R.drawable.ic_w_moon,
+                () -> startActivity(new Intent(this, ScreenOffActivity.class))), weight(1f, 0));
+        dock.addView(dockIcon(R.drawable.ic_settings, this::openEqualizer), weight(1f, 0));
+        dock.addView(dockIcon(R.drawable.ic_gear, this::openSettings), weight(1f, 0));
+        return dock;
+    }
 
     // ---------- Shortcuts: NWD screens, or the head unit's own apps elsewhere ----------
 
@@ -803,6 +775,18 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         android.widget.Toast.makeText(this, s, android.widget.Toast.LENGTH_SHORT).show();
     }
 
+    private View dockIcon(int icon, Runnable action) {
+        FrameLayout f = new FrameLayout(this);
+        ImageView iv = new ImageView(this);
+        iv.setImageResource(icon);
+        iv.setColorFilter(0xE6FFFFFF);
+        iv.setPadding(dp(12), dp(12), dp(12), dp(12));
+        f.addView(iv, new FrameLayout.LayoutParams(dp(56), dp(56), Gravity.CENTER));
+        Ui.pressable(iv, 0.85f);
+        iv.setOnClickListener(v -> action.run());
+        return f;
+    }
+
     // ---------- Lifecycle & helpers ----------
 
     @Override
@@ -821,7 +805,6 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         android.util.Log.d("CarLights", "onResume lights=" + lights);
         carLights.setAlpha(lights ? 1f : 0f);
         car.setAlpha(lights ? 0f : 1f);
-        beam.setAlpha(lights ? 1f : 0f);
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION}, 1);
         }
@@ -870,6 +853,11 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         return lp;
     }
 
+    private LinearLayout.LayoutParams vweight(float w, int top) {
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, 0, w);
+        lp.topMargin = top;
+        return lp;
+    }
 
     private int dp(int v) {
         return Ui.dp(this, v);

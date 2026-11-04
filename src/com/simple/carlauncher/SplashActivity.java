@@ -135,11 +135,11 @@ public class SplashActivity extends Activity {
             float ly = cy + lh * 0.95f;
             float lineAlpha = 1f - clamp((t - 2200) / 600f) * 0.6f;
             line.setShader(new LinearGradient(cx - half, 0, cx + half, 0,
-                    new int[]{0x001E90FF, Ui.ACCENT_LIGHT, 0x001E90FF}, null, Shader.TileMode.CLAMP));
+                    new int[]{0x003E82F7, Ui.ACCENT_LIGHT, 0x003E82F7}, null, Shader.TileMode.CLAMP));
             line.setAlpha(Math.round(255 * lineAlpha));
             c.drawRect(cx - half, ly - 1.5f, cx + half, ly + 1.5f, line);
             glow.setShader(new LinearGradient(0, ly - lh * 0.6f, 0, ly,
-                    0x001E90FF, 0x331E90FF, Shader.TileMode.CLAMP));
+                    0x003E82F7, 0x333E82F7, Shader.TileMode.CLAMP));
             glow.setAlpha(Math.round(255 * open * lineAlpha));
             c.drawRect(cx - half, ly - lh * 0.6f, cx + half, ly, glow);
 

@@ -33,7 +33,7 @@ public class MapView extends FrameLayout {
 
     public MapView(Context c) {
         super(c);
-        setBackgroundColor(0xFF1A1F27);
+        setBackgroundColor(0xFF1A1C20);
 
         web = new WebView(c);
         WebSettings s = web.getSettings();
@@ -43,7 +43,7 @@ public class MapView extends FrameLayout {
         s.setUseWideViewPort(true);
         s.setLoadWithOverviewMode(true);
         android.webkit.CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
-        web.setBackgroundColor(0xFF1A1F27);
+        web.setBackgroundColor(0xFF1A1C20);
         web.setWebViewClient(new WebViewClient() {
             @Override
             @SuppressWarnings("deprecation") // the default request-based version calls this one
@@ -80,7 +80,7 @@ public class MapView extends FrameLayout {
                 "https://www.google.com/maps?q=%.6f,%.6f&z=%d&hl=es&output=embed",
                 l.getLatitude(), l.getLongitude(), zoom);
         String html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-                + "<style>html,body{margin:0;height:100%;background:#1A1F27}"
+                + "<style>html,body{margin:0;height:100%;background:#1A1C20}"
                 + "iframe{border:0;width:100%;height:100%;display:block}</style></head>"
                 + "<body><iframe src=\"" + src + "\" allowfullscreen></iframe></body></html>";
         web.loadDataWithBaseURL("https://www.google.com/", html, "text/html", "utf-8", null);

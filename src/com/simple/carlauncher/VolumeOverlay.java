@@ -98,9 +98,9 @@ public class VolumeOverlay extends Service {
         pill.setGravity(Gravity.CENTER_VERTICAL);
         pill.setPadding(dp(12), 0, dp(26), 0);
         GradientDrawable bg = new GradientDrawable();
-        bg.setColor(0xF2151A21);
+        bg.setColor(0xF21A1C20);
         bg.setCornerRadius(dp(36));
-        bg.setStroke(dp(1), 0x661E90FF);
+        bg.setStroke(dp(1), 0x663E82F7);
         pill.setBackground(bg);
         pill.setElevation(dp(12));
 

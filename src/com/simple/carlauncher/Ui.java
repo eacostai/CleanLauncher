@@ -24,16 +24,16 @@ final class Ui {
     static final int SOURCE_RADIO = 4;
     static final int SOURCE_BT_MUSIC = -125;
 
-    // Dark theme palette: graphite panels with electric-blue accents.
-    static final int BG = 0xFF0B0D10;
-    static final int PANEL = 0xFF151A21;
-    static final int PANEL_ACTIVE = 0xFF1C2330;
-    static final int STROKE = 0xFF252C36;
-    static final int ACCENT = 0xFF1E90FF;
-    static final int ACCENT_LIGHT = 0xFF5CC8FF;
-    static final int ACCENT_DEEP = 0xFF123A6B;
-    static final int TEXT = 0xFFF2F5F8;
-    static final int TEXT_2 = 0xFF9AA4B2;
+    // Dark theme palette, Tesla style: near-black background, flat charcoal panels, one blue accent.
+    static final int BG = 0xFF0C0D0F;
+    static final int PANEL = 0xFF1A1C20;
+    static final int PANEL_ACTIVE = 0xFF24272C;
+    static final int STROKE = 0xFF2A2D33;
+    static final int ACCENT = 0xFF3E82F7;
+    static final int ACCENT_LIGHT = 0xFF6FA3FF;
+    static final int ACCENT_DEEP = 0xFF1E2A40;
+    static final int TEXT = 0xFFF0F2F5;
+    static final int TEXT_2 = 0xFF8C929C;
     static final int WARN = 0xFFFFB020;
     static final int ERROR = 0xFFFF4D4F;
 
@@ -73,14 +73,8 @@ final class Ui {
     static Drawable background(Context c) {
         if (isDark(c)) {
             GradientDrawable base = new GradientDrawable();
-            base.setColor(BG);
-            // A faint blue light from the top-left corner, barely visible on graphite.
-            GradientDrawable glow = new GradientDrawable();
-            glow.setGradientType(GradientDrawable.RADIAL_GRADIENT);
-            glow.setGradientRadius(dp(c, 560));
-            glow.setGradientCenter(0.1f, 0f);
-            glow.setColors(new int[]{0x1A1E90FF, 0x001E90FF});
-            return new LayerDrawable(new Drawable[]{base, glow});
+            base.setColor(BG); // flat, no glow
+            return base;
         }
         GradientDrawable base = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
                 new int[]{0xFF1B2C8C, 0xFF20206E, 0xFF371764});
