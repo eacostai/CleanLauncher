@@ -412,7 +412,6 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
             statOil.setText(left < 0 ? figure("¡Ya toca!", "") : figure(OilActivity.fmt(left), "km"));
             statOil.setTextColor(left < 0 ? Ui.ERROR : left <= Odometer.WARN_KM ? Ui.WARN : txt);
         }
-        gauge.setMax(Odometer.todayMaxKmh(this));
     }
 
     /** Car as large as fits, the model name just below and a soft shadow under the wheels. */

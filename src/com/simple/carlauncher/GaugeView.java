@@ -11,12 +11,14 @@ import android.view.View;
 
 /**
  * Wide speedometer along the bottom of the home screen: a smooth hill-shaped line from 0 to
- * 140 km/h, filled in blue up to the current GPS speed, with today's top speed marked in red.
+ * 140 km/h, filled in blue up to the current GPS speed, with the 100 km/h limit marked in red
+ * (the number turns red above it).
  * Without a GPS fix the number is dimmed and the reason is written under KM/H.
  */
 public class GaugeView extends View {
 
     private static final float MAX = 140f;
+    private static final float LIMIT = 100f;
 
     private final Paint curve = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint curveOn = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -29,14 +31,16 @@ public class GaugeView extends View {
     private final Paint maxLine = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path line = new Path(), area = new Path();
     private final float d;
+    private final int textColor;
 
-    private float speed, shown, max;
+    private float speed, shown;
     private boolean hasFix;
     private String noFixLabel = "buscando GPS";
 
     public GaugeView(Context c, int text, int sub) {
         super(c);
         d = c.getResources().getDisplayMetrics().density;
+        textColor = text;
         float sp = c.getResources().getDisplayMetrics().scaledDensity;
         curve.setStyle(Paint.Style.STROKE);
         curve.setStrokeWidth(1.4f * d);
@@ -73,13 +77,6 @@ public class GaugeView extends View {
         hasFix = false;
         noFixLabel = label;
         speed = 0;
-        invalidate();
-    }
-
-    /** Today's top speed, marked in red (0 hides it). */
-    void setMax(float kmh) {
-        if (Math.abs(kmh - max) < 0.5f) return;
-        max = kmh;
         invalidate();
     }
 
@@ -150,19 +147,16 @@ public class GaugeView extends View {
             c.drawText(String.valueOf(v), x, yOf(x) + tick.getTextSize() * 2.1f, tick);
         }
 
-        // Today's top speed.
-        if (max >= 5) {
-            float xm = xOf(max);
-            float ym = yOf(xm);
-            c.drawLine(xm, ym - 6 * d, xm, ym + getHeight() * 0.5f, maxLine);
-            maxLine.setTextAlign(xm > x1 - 60 * d ? Paint.Align.RIGHT : Paint.Align.LEFT);
-            c.drawText("MÁX " + Math.round(max), xm + (xm > x1 - 60 * d ? -6 : 6) * d,
-                    ym + getHeight() * 0.33f, maxLine);
-        }
+        // Speed limit.
+        float xm = xOf(LIMIT);
+        float ym = yOf(xm);
+        c.drawLine(xm, ym - 6 * d, xm, ym + getHeight() * 0.5f, maxLine);
+        c.drawText("LÍMITE " + Math.round(LIMIT), xm + 6 * d, ym + getHeight() * 0.33f, maxLine);
 
         // Needle, number to its left and KM/H to its right; kept away from the edges.
         float xn = Math.max(number.getTextSize() * 1.6f, Math.min(x1 - 90 * d, xs));
         c.drawLine(xn, yOf(xn) - 4 * d, xn, bottom, needle);
+        number.setColor(hasFix && shown > LIMIT ? 0xFFE5484D : textColor);
         number.setAlpha(hasFix ? 255 : 110);
         float base = bottom - getHeight() * 0.08f;
         c.drawText(String.valueOf(hasFix ? Math.round(shown) : 0), xn - 8 * d, base, number);
