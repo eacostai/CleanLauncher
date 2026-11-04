@@ -32,6 +32,8 @@ final class Ui {
     static final int ACCENT = 0xFF3E82F7;
     static final int ACCENT_LIGHT = 0xFF6FA3FF;
     static final int ACCENT_DEEP = 0xFF1E2A40;
+    static final int BG_ORANGE = 0xFFF2711C;
+    static final int BG_ORANGE_DEEP = 0xFFB3420B;
     static final int TEXT = 0xFFF0F2F5;
     static final int TEXT_2 = 0xFF8C929C;
     static final int WARN = 0xFFFFB020;
@@ -72,9 +74,9 @@ final class Ui {
 
     static Drawable background(Context c) {
         if (isDark(c)) {
-            GradientDrawable base = new GradientDrawable();
-            base.setColor(BG); // flat, no glow
-            return base;
+            // Orange background (trial): warm diagonal gradient behind the charcoal cards.
+            return new GradientDrawable(GradientDrawable.Orientation.TL_BR,
+                    new int[]{BG_ORANGE, BG_ORANGE_DEEP});
         }
         GradientDrawable base = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
                 new int[]{0xFF1B2C8C, 0xFF20206E, 0xFF371764});
