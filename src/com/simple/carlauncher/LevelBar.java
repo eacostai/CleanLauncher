@@ -21,6 +21,11 @@ public class LevelBar extends View {
         track.setColor(0x40FFFFFF);
     }
 
+    void setTrack(int color) {
+        track.setColor(color);
+        invalidate();
+    }
+
     void setLevel(float l) {
         level = Math.max(0, Math.min(1, l));
         invalidate();

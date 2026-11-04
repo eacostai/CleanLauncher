@@ -48,21 +48,26 @@ final class Ui {
     static final String THEME_AUTO = "auto", THEME_LIGHT = "light", THEME_DARK = "dark";
 
     static String themeMode(Context c) {
-        return c.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("theme", THEME_DARK);
+        return c.getSharedPreferences("ui", Context.MODE_PRIVATE).getString("theme", THEME_AUTO);
     }
 
     static void setThemeMode(Context c, String mode) {
         c.getSharedPreferences("ui", Context.MODE_PRIVATE).edit().putString("theme", mode).apply();
     }
 
-    /** Auto = dark while the car's lights are on (ILL wire) or at night. */
+    /** Auto = dark while the car's lights are on (ILL wire) or from 6 p.m. to 6 a.m. */
     static boolean isDark(Context c) {
         String m = themeMode(c);
         if (THEME_DARK.equals(m)) return true;
         if (THEME_LIGHT.equals(m)) return false;
         int ill = android.provider.Settings.System.getInt(c.getContentResolver(), "mcu_no_source_device_state", 0);
+        return (ill & 2) != 0 || isNightHour();
+    }
+
+    /** Night by the clock: 18:00 to 06:00 (headlights on, dark theme). */
+    static boolean isNightHour() {
         int h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
-        return (ill & 2) != 0 || h >= 19 || h < 6;
+        return h >= 18 || h < 6;
     }
 
     /** Picks the light or dark variant of a gradient. */
