@@ -8,11 +8,6 @@ import android.graphics.Color;
 import android.graphics.PorterDuff;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
-import android.hardware.GeomagneticField;
-import android.hardware.Sensor;
-import android.hardware.SensorEvent;
-import android.hardware.SensorEventListener;
-import android.hardware.SensorManager;
 import android.location.Location;
 import android.location.LocationListener;
 import android.location.LocationManager;
@@ -24,7 +19,6 @@ import android.text.Spanned;
 import android.text.style.AbsoluteSizeSpan;
 import android.text.style.ForegroundColorSpan;
 import android.view.Gravity;
-import android.view.Surface;
 import android.view.View;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -37,8 +31,8 @@ import java.util.Locale;
 
 /**
  * Home screen: one glass panel with the Kia logo on top. Left: time, greeting and the music
- * playing, over a faint live map. Centre: today's trip, the Sorento (headlights on at night or
- * on touch) and a wide GPS speedometer. Right: weather, compass, theme pill and music controls.
+ * playing, over a faint live map. Centre: the Sorento (headlights on at night or
+ * on touch) and a wide GPS speedometer. Right: weather, today's trip, theme pill and music controls.
  * Icon dock below. Day (light) and night (dark) looks; auto switches at 6 p.m. / car lights.
  */
 public class MainActivity extends Activity implements NowPlaying.Listener {
@@ -76,12 +70,9 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
 
     private static final long GPS_STALE_MS = 5000;
     private GaugeView gauge;
-    private CompassView compass;
     private MapView map;
     private Location lastGps;
     private long lastGpsAt = -GPS_STALE_MS;
-    private long lastGpsHeadingAt = -GPS_STALE_MS;
-    private GeomagneticField declination;
 
     private String profileStamp() {
         return Profile.name(this) + "|" + Profile.carPhotoFile(this).lastModified();
@@ -297,16 +288,6 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         LinearLayout col = new LinearLayout(this);
         col.setOrientation(LinearLayout.VERTICAL);
 
-        LinearLayout stats = new LinearLayout(this);
-        stats.setGravity(Gravity.CENTER_HORIZONTAL);
-        stats.setPadding(0, dp(18), 0, 0);
-        statKm = stat(stats, "RUTA DE HOY");
-        statMoving = stat(stats, "EN MOVIMIENTO");
-        statOil = stat(stats, "PRÓXIMO CAMBIO DE ACEITE");
-        ((View) statOil.getParent()).setOnClickListener(v -> startActivity(new Intent(this, OilActivity.class)));
-        Ui.pressable((View) statOil.getParent(), 0.94f);
-        col.addView(stats);
-
         // The user's own car (photo with background removed); headlights glow at night or on touch.
         FrameLayout carArea = new FrameLayout(this);
         View shadow = new View(this);
@@ -370,46 +351,17 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         return b.toString();
     }
 
-    /** One figure of today's trip: big value with its unit, small caption underneath. */
-    private TextView stat(LinearLayout row, String caption) {
-        LinearLayout box = new LinearLayout(this);
-        box.setOrientation(LinearLayout.VERTICAL);
-        box.setGravity(Gravity.CENTER_HORIZONTAL);
-        box.setPadding(dp(16), 0, dp(16), 0);
-        TextView v = Ui.text(this, "--", 22, txt);
-        box.addView(v);
-        TextView c = Ui.text(this, caption, 9, sub);
-        c.setLetterSpacing(0.04f);
-        c.setPadding(0, dp(2), 0, 0);
-        box.addView(c);
-        row.addView(box);
-        return v;
-    }
-
-    private CharSequence figure(String value, String unit) {
-        SpannableStringBuilder sb = new SpannableStringBuilder(value);
-        sb.setSpan(new android.text.style.StyleSpan(Typeface.BOLD), 0, value.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        if (!unit.isEmpty()) {
-            int s = sb.length();
-            sb.append(" ").append(unit);
-            sb.setSpan(new AbsoluteSizeSpan(13, true), s, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            sb.setSpan(new ForegroundColorSpan(sub), s, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        }
-        return sb;
-    }
-
     private void updateStats() {
         float km = Odometer.todayKm(this);
-        statKm.setText(figure(String.format(new Locale("es", "EC"), "%.1f", km).replace('.', ','), "km"));
+        statKm.setText(String.format(new Locale("es", "EC"), "%.1f", km).replace('.', ',') + " km");
         int min = Odometer.todayMovingMinutes(this);
-        statMoving.setText(min < 60 ? figure(String.valueOf(min), "min")
-                : figure(min / 60 + " h " + (min % 60 < 10 ? "0" : "") + min % 60, ""));
+        statMoving.setText(min < 60 ? min + " min" : min / 60 + " h " + (min % 60 < 10 ? "0" : "") + min % 60);
         if (!Odometer.isConfigured(this)) {
-            statOil.setText(figure("Configurar", ""));
+            statOil.setText("Configurar");
             statOil.setTextColor(txt);
         } else {
             int left = Odometer.remainingKm(this);
-            statOil.setText(left < 0 ? figure("¡Ya toca!", "") : figure(OilActivity.fmt(left), "km"));
+            statOil.setText(left < 0 ? "¡Ya toca!" : OilActivity.fmt(left) + " km");
             statOil.setTextColor(left < 0 ? Ui.ERROR : left <= Odometer.WARN_KM ? Ui.WARN : txt);
         }
     }
@@ -445,7 +397,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         model.setLayoutParams(mlp);
     }
 
-    // ---------- Right: weather, compass, theme, music controls ----------
+    // ---------- Right: weather, today's trip, theme, music controls ----------
 
     private View buildRight() {
         LinearLayout col = new LinearLayout(this);
@@ -487,8 +439,17 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         dlp.setMargins(0, dp(8), 0, dp(8));
         col.addView(div, dlp);
 
-        compass = new CompassView(this, txt, sub);
-        col.addView(compass, new LinearLayout.LayoutParams(-1, 0, 1f));
+        // Today's trip, in small rows like the weather ones; the last one opens the oil screen.
+        LinearLayout trip = new LinearLayout(this);
+        trip.setOrientation(LinearLayout.VERTICAL);
+        statKm = row(trip, "RUTA DE HOY");
+        statMoving = row(trip, "EN MOVIMIENTO");
+        statOil = row(trip, "MANTENIMIENTO EN");
+        View oilRow = (View) statOil.getParent();
+        Ui.pressable(oilRow, 0.96f);
+        oilRow.setOnClickListener(v -> startActivity(new Intent(this, OilActivity.class)));
+        col.addView(trip);
+        col.addView(new View(this), new LinearLayout.LayoutParams(-1, 0, 1f));
 
         themePill = Ui.text(this, "", 12, txt);
         themePill.setTypeface(Typeface.DEFAULT_BOLD);
@@ -745,7 +706,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         }
     };
 
-    // ---------- GPS: speedometer, compass and map position ----------
+    // ---------- GPS: speedometer and map position ----------
 
     private final LocationListener locationListener = new LocationListener() {
         @Override
@@ -765,10 +726,6 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
 
     private void onFix(Location l) {
         boolean gps = LocationManager.GPS_PROVIDER.equals(l.getProvider());
-        if (declination == null) {
-            declination = new GeomagneticField((float) l.getLatitude(), (float) l.getLongitude(),
-                    (float) l.getAltitude(), System.currentTimeMillis());
-        }
         // A recent GPS fix wins over the coarse network position for the map.
         if (!gps && SystemClock.elapsedRealtime() - lastGpsAt < GPS_STALE_MS) return;
         map.setLocation(l);
@@ -782,14 +739,6 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
             kmh = 0;
         }
         if (kmh < 2) kmh = 0; // GPS jitter while parked
-        // Heading from the GPS while moving: the direction of travel, whatever the unit's sensors.
-        if (kmh >= 8) {
-            float bearing = l.hasBearing() ? l.getBearing() : lastGps != null ? lastGps.bearingTo(l) : Float.NaN;
-            if (!Float.isNaN(bearing)) {
-                compass.setHeading(bearing);
-                lastGpsHeadingAt = SystemClock.elapsedRealtime();
-            }
-        }
         lastGps = l;
         lastGpsAt = SystemClock.elapsedRealtime();
         gauge.setSpeed(kmh);
@@ -799,9 +748,6 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
     private final Runnable gpsWatch = new Runnable() {
         public void run() {
             if (SystemClock.elapsedRealtime() - lastGpsAt > GPS_STALE_MS) gauge.setNoFix(gpsProblem());
-            if (sensors == null && SystemClock.elapsedRealtime() - lastGpsHeadingAt > 60_000) {
-                compass.setHeading(Float.NaN); // no compass sensor and not moving for a while
-            }
             handler.postDelayed(this, 2000);
         }
     };
@@ -839,11 +785,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
                 if (l != null && (last == null || l.getTime() > last.getTime())) last = l;
             } catch (SecurityException ignored) { }
         }
-        if (last != null) {
-            map.setLocation(last);
-            declination = new GeomagneticField((float) last.getLatitude(), (float) last.getLongitude(),
-                    (float) last.getAltitude(), System.currentTimeMillis());
-        }
+        if (last != null) map.setLocation(last);
         try {
             lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, locationListener);
         } catch (Exception ignored) { } // no GPS receiver
@@ -856,62 +798,6 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
     private void stopLocation() {
         handler.removeCallbacks(gpsWatch);
         ((LocationManager) getSystemService(LOCATION_SERVICE)).removeUpdates(locationListener);
-    }
-
-    // ---------- Compass sensor (parked, or units without GPS bearing) ----------
-
-    private SensorManager sensors;
-    private final float[] rot = new float[9], remapped = new float[9], orient = new float[3];
-    private float[] gravity, magnetic;
-
-    private final SensorEventListener compassListener = new SensorEventListener() {
-        @Override
-        public void onSensorChanged(SensorEvent e) {
-            // While driving the GPS direction of travel is more reliable than the sensor.
-            if (SystemClock.elapsedRealtime() - lastGpsHeadingAt < 10_000) return;
-            if (e.sensor.getType() == Sensor.TYPE_ROTATION_VECTOR) {
-                SensorManager.getRotationMatrixFromVector(rot, e.values);
-            } else {
-                if (e.sensor.getType() == Sensor.TYPE_ACCELEROMETER) gravity = e.values.clone();
-                else magnetic = e.values.clone();
-                if (gravity == null || magnetic == null || !SensorManager.getRotationMatrix(rot, null, gravity, magnetic)) return;
-            }
-            // The screen stands upright in the dash, facing the driver: the car heads where
-            // the back of the screen points.
-            int r = getWindowManager().getDefaultDisplay().getRotation();
-            if (r == Surface.ROTATION_90) SensorManager.remapCoordinateSystem(rot, SensorManager.AXIS_Z, SensorManager.AXIS_MINUS_X, remapped);
-            else if (r == Surface.ROTATION_270) SensorManager.remapCoordinateSystem(rot, SensorManager.AXIS_MINUS_Z, SensorManager.AXIS_X, remapped);
-            else SensorManager.remapCoordinateSystem(rot, SensorManager.AXIS_X, SensorManager.AXIS_Z, remapped);
-            SensorManager.getOrientation(remapped, orient);
-            float deg = (float) Math.toDegrees(orient[0]);
-            if (declination != null) deg += declination.getDeclination();
-            compass.setHeading(deg);
-        }
-
-        @Override
-        public void onAccuracyChanged(Sensor s, int a) { }
-    };
-
-    private void startCompass() {
-        SensorManager sm = (SensorManager) getSystemService(SENSOR_SERVICE);
-        if (sm == null) return;
-        Sensor rv = sm.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
-        Sensor mag = sm.getDefaultSensor(Sensor.TYPE_MAGNETIC_FIELD);
-        Sensor acc = sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER);
-        if (rv != null) {
-            sm.registerListener(compassListener, rv, SensorManager.SENSOR_DELAY_UI);
-        } else if (mag != null && acc != null) {
-            sm.registerListener(compassListener, mag, SensorManager.SENSOR_DELAY_UI);
-            sm.registerListener(compassListener, acc, SensorManager.SENSOR_DELAY_UI);
-        } else {
-            return; // no compass: the GPS gives the heading while driving
-        }
-        sensors = sm;
-    }
-
-    private void stopCompass() {
-        if (sensors != null) sensors.unregisterListener(compassListener);
-        sensors = null;
     }
 
     // ---------- Dock ----------
@@ -1057,7 +943,6 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         }
         handler.post(periodic);
         startLocation();
-        startCompass();
         map.onResume();
         nowPlaying.addListener(this);
         onNowPlayingChanged();
@@ -1071,7 +956,6 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         unregisterReceiver(illReceiver);
         handler.removeCallbacks(periodic);
         stopLocation();
-        stopCompass();
         handler.removeCallbacks(progressTick);
         map.onPause();
         nowPlaying.removeListener(this);
