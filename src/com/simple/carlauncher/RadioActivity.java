@@ -71,7 +71,7 @@ public class RadioActivity extends Activity {
         classic.setOnClickListener(v -> Ui.launch(this, FACTORY_RADIO));
         bar.addView(classic);
 
-        band = chip("FM1", 0xFF4F7BFF);
+        band = chip("FM1", Ui.ACCENT);
         band.setTypeface(Typeface.DEFAULT_BOLD);
         band.setOnClickListener(v -> {
             radio.changeBand();
@@ -213,7 +213,7 @@ public class RadioActivity extends Activity {
             presetViews.get(i)[0].setText(p == null ? "--" : p.frequencyLabel());
             presetViews.get(i)[1].setText(p == null || p.psName.isEmpty() ? "P" + (i + 1) : p.psName);
             GradientDrawable bg = active
-                    ? new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{0xFF2EB8FF, 0xFF8A4DFF})
+                    ? new GradientDrawable(GradientDrawable.Orientation.TL_BR, new int[]{Ui.ACCENT_LIGHT, Ui.ACCENT})
                     : new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{0x26FFFFFF, 0x14FFFFFF});
             bg.setCornerRadius(dp(14));
             presetTiles.get(i).setBackground(bg);

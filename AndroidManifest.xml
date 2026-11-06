@@ -11,7 +11,7 @@
 
     <application
         android:label="Inicio"
-        android:icon="@drawable/ic_apps"
+        android:icon="@mipmap/ic_launcher"
         android:theme="@style/LauncherTheme">
 
         <activity
@@ -50,6 +50,15 @@
             android:name=".ScreenOffActivity"
             android:excludeFromRecents="true"
             android:launchMode="singleInstance"
+            android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
+            android:configChanges="orientation|screenSize|keyboardHidden|locale" />
+
+        <activity
+            android:name=".SplashActivity"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:launchMode="singleInstance"
+            android:taskAffinity="com.simple.carlauncher.splash"
             android:theme="@android:style/Theme.Black.NoTitleBar.Fullscreen"
             android:configChanges="orientation|screenSize|keyboardHidden|locale" />
 

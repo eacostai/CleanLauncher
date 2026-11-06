@@ -15,7 +15,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
-/** Shared look (neon blue/purple) and small helpers for all screens. */
+/** Shared look (graphite + electric blue, or the light neon theme) and small helpers for all screens. */
 final class Ui {
 
     // MCU source ids for ACTION_REQUEST_CHANGE_SOURCE: the "Source" column of
@@ -23,6 +23,19 @@ final class Ui {
     static final int SOURCE_MUSIC = -128;
     static final int SOURCE_RADIO = 4;
     static final int SOURCE_BT_MUSIC = -125;
+
+    // Dark theme palette, Tesla style: near-black background, flat charcoal panels, one blue accent.
+    static final int BG = 0xFF0C0D0F;
+    static final int PANEL = 0xFF1A1C20;
+    static final int PANEL_ACTIVE = 0xFF24272C;
+    static final int STROKE = 0xFF2A2D33;
+    static final int ACCENT = 0xFF3E82F7;
+    static final int ACCENT_LIGHT = 0xFF6FA3FF;
+    static final int ACCENT_DEEP = 0xFF1E2A40;
+    static final int TEXT = 0xFFF0F2F5;
+    static final int TEXT_2 = 0xFF8C929C;
+    static final int WARN = 0xFFFFB020;
+    static final int ERROR = 0xFFFF4D4F;
 
     private Ui() { }
 
@@ -42,14 +55,19 @@ final class Ui {
         c.getSharedPreferences("ui", Context.MODE_PRIVATE).edit().putString("theme", mode).apply();
     }
 
-    /** Auto = dark while the car's lights are on (ILL wire) or at night. */
+    /** Auto = dark while the car's lights are on (ILL wire) or from 6 p.m. to 6 a.m. */
     static boolean isDark(Context c) {
         String m = themeMode(c);
         if (THEME_DARK.equals(m)) return true;
         if (THEME_LIGHT.equals(m)) return false;
         int ill = android.provider.Settings.System.getInt(c.getContentResolver(), "mcu_no_source_device_state", 0);
+        return (ill & 2) != 0 || isNightHour();
+    }
+
+    /** Night by the clock: 18:00 to 06:00 (headlights on, dark theme). */
+    static boolean isNightHour() {
         int h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY);
-        return (ill & 2) != 0 || h >= 19 || h < 6;
+        return h >= 18 || h < 6;
     }
 
     /** Picks the light or dark variant of a gradient. */
@@ -59,14 +77,9 @@ final class Ui {
 
     static Drawable background(Context c) {
         if (isDark(c)) {
-            GradientDrawable base = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                    new int[]{0xFF0C0C12, 0xFF050507, 0xFF000000});
-            GradientDrawable glow = new GradientDrawable();
-            glow.setGradientType(GradientDrawable.RADIAL_GRADIENT);
-            glow.setGradientRadius(dp(c, 560));
-            glow.setGradientCenter(0.95f, 0.95f);
-            glow.setColors(new int[]{0x223F5AFF, 0x003F5AFF});
-            return new LayerDrawable(new Drawable[]{base, glow});
+            GradientDrawable base = new GradientDrawable();
+            base.setColor(BG); // flat, no glow
+            return base;
         }
         GradientDrawable base = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
                 new int[]{0xFF1B2C8C, 0xFF20206E, 0xFF371764});
@@ -84,12 +97,32 @@ final class Ui {
     }
 
     static GradientDrawable card(Context c) {
-        boolean dark = isDark(c);
+        if (isDark(c)) {
+            GradientDrawable bg = new GradientDrawable();
+            bg.setColor(PANEL);
+            bg.setCornerRadius(dp(c, 16));
+            bg.setStroke(dp(c, 1), STROKE);
+            return bg;
+        }
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-                dark ? new int[]{0xFF17171E, 0xFF101015} : new int[]{0x4D5B6CFF, 0x333B3FB8});
+                new int[]{0x4D5B6CFF, 0x333B3FB8});
         bg.setCornerRadius(dp(c, 18));
-        bg.setStroke(dp(c, 1), dark ? 0x14FFFFFF : 0x337F9CFF);
+        bg.setStroke(dp(c, 1), 0x337F9CFF);
         return bg;
+    }
+
+    /** Fill for secondary buttons and chips. */
+    static int fill(Context c) {
+        return isDark(c) ? PANEL_ACTIVE : 0x26FFFFFF;
+    }
+
+    /** Text colours: primary and secondary. */
+    static int text1(Context c) {
+        return isDark(c) ? TEXT : Color.WHITE;
+    }
+
+    static int text2(Context c) {
+        return isDark(c) ? TEXT_2 : 0xB3FFFFFF;
     }
 
     static GradientDrawable circle(int color) {
@@ -110,14 +143,14 @@ final class Ui {
         return tv;
     }
 
-    /** Round icon button. filled = white disc with dark icon (primary action). */
+    /** Round icon button. filled = electric-blue disc (primary action). */
     static ImageView iconButton(Context c, int icon, int sizeDp, boolean filled, Runnable action) {
         ImageView b = new ImageView(c);
         b.setImageResource(icon);
         int pad = Math.round(sizeDp * 0.24f);
         b.setPadding(dp(c, pad), dp(c, pad), dp(c, pad), dp(c, pad));
-        b.setBackground(circle(filled ? Color.WHITE : 0x26FFFFFF));
-        b.setColorFilter(filled ? 0xFF2A1F6E : Color.WHITE);
+        b.setBackground(circle(filled ? ACCENT : fill(c)));
+        b.setColorFilter(filled ? Color.WHITE : text1(c));
         pressable(b, 0.88f);
         b.setOnClickListener(v -> action.run());
         return b;

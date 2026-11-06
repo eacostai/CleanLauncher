@@ -33,7 +33,7 @@ public class SetupActivity extends Activity {
 
     private EditText name;
     private ImageView carPreview;
-    private Switch voice, picoPlaca;
+    private Switch voice;
     private TextView homeBtn, locationBtn, notifBtn, overlayBtn;
 
     @Override
@@ -82,7 +82,7 @@ public class SetupActivity extends Activity {
         name = new EditText(this);
         name.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
         name.setText(Profile.name(this));
-        name.setHint("Ej.: Ana");
+        name.setHint("Ej.: Eddy");
         name.setTextColor(Color.WHITE);
         name.setHintTextColor(0x66FFFFFF);
         name.setTextSize(20);
@@ -109,7 +109,6 @@ public class SetupActivity extends Activity {
         card.addView(tip);
 
         voice = toggle(card, "Saludo por voz al encender el carro", Profile.voiceEnabled(this));
-        picoPlaca = toggle(card, "Recordar pico y placa los miércoles (Quito)", Profile.picoPlacaEnabled(this));
         showPhoto();
         return card;
     }
@@ -260,7 +259,6 @@ public class SetupActivity extends Activity {
         Profile.prefs(this).edit()
                 .putString("name", name.getText().toString().trim())
                 .putBoolean("voice", voice.isChecked())
-                .putBoolean("picoplaca", picoPlaca.isChecked())
                 .putBoolean("setup_done", true)
                 .apply();
         startActivity(new Intent(this, MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP));

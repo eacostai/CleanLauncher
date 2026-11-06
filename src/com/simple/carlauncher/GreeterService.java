@@ -19,7 +19,7 @@ import java.util.List;
 
 /**
  * Spoken welcome ~20 s after the car is switched on: greeting, current weather,
- * seat-belt reminder, "pico y placa" on Wednesdays and "drive carefully".
+ * seat-belt reminder and "drive carefully".
  *
  * The phrases are pre-rendered clips (res/raw/v_*.mp3) because the head unit has no
  * text-to-speech engine. The launcher is listed in /nwdappconfig/app/NaviSound.ini so the
@@ -56,17 +56,24 @@ public class GreeterService extends Service {
         f.addAction("com.bt.ACTION_BT_MUSIC_PLAY");
         f.addAction("com.bt.ACTION_BT_MUSIC_PAUSE");
         f.addAction("com.simple.carlauncher.TEST_CAR_ON"); // adb test hook
+        f.addAction(Intent.ACTION_SCREEN_ON); // start-up animation
         registerReceiver(events, f);
         // Right after boot, bring the last source back and greet. A plain restart of this app
         // (update, crash) must not touch the audio.
         if (android.os.SystemClock.elapsedRealtime() < 3 * 60_000) {
             handler.postDelayed(this::restoreAudio, 4000);
             schedule();
+            SplashActivity.show(this);
         }
     }
 
+    /** Set by the home screen when it opens, so the greeting is also spoken then. */
+    static final String EXTRA_GREET_NOW = "greet_now";
+    private static final long APP_OPEN_DELAY_MS = 5_000;
+
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        if (intent != null && intent.getBooleanExtra(EXTRA_GREET_NOW, false)) schedule(APP_OPEN_DELAY_MS);
         return START_STICKY;
     }
 
@@ -87,6 +94,8 @@ public class GreeterService extends Service {
                 Log.d(TAG, "mcu_state=" + state);
                 if (state == 3) onCarOff();
                 else if (state == 1) onCarOn();
+            } else if (Intent.ACTION_SCREEN_ON.equals(a)) {
+                SplashActivity.show(GreeterService.this);
             } else if ("com.simple.carlauncher.TEST_CAR_ON".equals(a)) {
                 onCarOn();
             } else if ("com.bt.ACTION_BT_MUSIC_PAUSE".equals(a)) {
@@ -127,6 +136,7 @@ public class GreeterService extends Service {
     }
 
     private void onCarOn() {
+        SplashActivity.show(this);
         handler.postDelayed(this::restoreAudio, 3000);
         schedule();
     }
@@ -157,10 +167,14 @@ public class GreeterService extends Service {
     // ---------- Greeting ----------
 
     private void schedule() {
+        schedule(DELAY_MS);
+    }
+
+    private void schedule(long delayMs) {
         long last = prefs().getLong("last_greet", 0);
         if (System.currentTimeMillis() - last < MIN_INTERVAL_MS) return;
         handler.removeCallbacks(greet);
-        handler.postDelayed(greet, DELAY_MS);
+        handler.postDelayed(greet, delayMs);
         Weather.fetch(this, w -> { }); // refresh the cache before speaking
     }
 
@@ -168,19 +182,28 @@ public class GreeterService extends Service {
         if (!Profile.voiceEnabled(this)) return;
         prefs().edit().putLong("last_greet", System.currentTimeMillis()).apply();
         List<String> clips = buildMessage();
-        // Owner's build ships recorded clips; shared builds speak with the device's TTS engine.
-        if (getResources().getIdentifier("v_careful", "raw", getPackageName()) != 0) speak(clips);
-        else speakTts(Speech.text(this, clips));
+        // Text-to-speech says the driver's name; the recorded clips (owner's build) are the
+        // fallback when the head unit has no Spanish TTS engine.
+        speakTts(Speech.text(this, clips), clips);
     };
+
+    private boolean hasRecordedClips() {
+        return getResources().getIdentifier("v_careful", "raw", getPackageName()) != 0;
+    }
 
     private android.speech.tts.TextToSpeech tts;
 
-    private void speakTts(String text) {
+    private void speakTts(String text, List<String> fallbackClips) {
         if (tts != null) tts.shutdown();
         tts = new android.speech.tts.TextToSpeech(this, status -> {
-            if (status != android.speech.tts.TextToSpeech.SUCCESS) return;
             java.util.Locale es = new java.util.Locale("es", "US");
-            if (tts.isLanguageAvailable(es) < 0) es = new java.util.Locale("es");
+            boolean ok = status == android.speech.tts.TextToSpeech.SUCCESS;
+            if (ok && tts.isLanguageAvailable(es) < 0) es = new java.util.Locale("es");
+            if (!ok || tts.isLanguageAvailable(es) < 0) {
+                Log.d(TAG, "no Spanish TTS, using recorded clips");
+                if (hasRecordedClips()) speak(fallbackClips);
+                return;
+            }
             tts.setLanguage(es);
             Bundle params = new Bundle();
             tts.speak(text, android.speech.tts.TextToSpeech.QUEUE_FLUSH, params, "greet");
@@ -210,9 +233,6 @@ public class GreeterService extends Service {
             else if (left <= Odometer.WARN_KM) clips.add("v_oil_soon");
         }
         clips.add("v_seatbelt");
-        if (day == Calendar.WEDNESDAY && Profile.picoPlacaEnabled(this)) {
-            clips.add("v_picoplaca"); // Quito: 6:00-9:30, 16:00-20:00
-        }
         clips.add("v_careful");
         return clips;
     }
