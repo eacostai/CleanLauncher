@@ -1,4 +1,4 @@
-# Rediseño Kia Sorento 2012 (rama `redesign/kia-sorento-ui`)
+# Proyecto Eddy Sorento: rediseño del launcher para la Kia Sorento 2012 (rama `redesign/kia-sorento-ui`)
 
 Base: `main` en `e4170d4` («Build portable, CI y nuevas funciones»).
 
@@ -24,6 +24,8 @@ Base: `main` en `e4170d4` («Build portable, CI y nuevas funciones»).
 | Tema automático a las 6 p. m. | El tema automático pasa a noche desde las 18:00 (o con las luces del carro) y ahora es el predeterminado. El botón del inicio cambia entre AUTO, DÍA y NOCHE. | `Ui.java`, `MainActivity.java` |
 | Sorento en alta calidad, verde oliva | Fotos del auto rehechas a 1600 px desde la imagen de mayor resolución: más nitidez y contraste, borde limpio; faros encendidos con brillo más natural. La carrocería está pintada en gris oliva `#6f7262` conservando reflejos y sombras (el capó sigue negro como en la foto original). Se quitó la brújula. | `res/drawable-nodpi/sorento.png`, `res/drawable-nodpi/sorento_lights.png` |
 | Icono de la app | Icono nuevo: la Sorento con faros encendidos sobre un velocímetro azul, en fondo grafito (`res/mipmap-*/ic_launcher.png`). | `AndroidManifest.xml`, `res/mipmap-*` |
+| Lunas polarizadas | Parabrisas y ventanas de la Sorento oscurecidos como polarizado (casi no se ve el interior, se conservan reflejos suaves), con faros apagados y encendidos. El espejo queda igual. | `res/drawable-nodpi/sorento.png`, `res/drawable-nodpi/sorento_lights.png` |
+| WiFi en lugar de Radio | El botón de radio de la barra pasa a WiFi y abre directo la configuración de WiFi (o la de redes inalámbricas si la radio no la tiene). La pantalla de radio sigue en el sistema, solo sale de la barra. | `MainActivity.java`, `res/drawable/ic_wifi.xml` (nuevo) |
 | Recorrido de hoy | El odómetro GPS guarda también los km del día, el tiempo en movimiento y la velocidad máxima; se reinicia a medianoche. | `Odometer.java` |
 | Voz al abrir | El saludo por voz suena también al abrir el launcher (5 s después; máximo uno por minuto). Usa texto a voz para decir el nombre y, si la radio no tiene voz en español, los clips grabados. | `GreeterService.java`, `MainActivity.java` |
 

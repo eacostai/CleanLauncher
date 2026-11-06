@@ -808,7 +808,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         dock.setBackground(glassBg(18));
         dock.addView(dockIcon(R.drawable.ic_compass, "Mapa", this::openMaps), weight());
         dock.addView(dockIcon(R.drawable.ic_bluetooth, "Bluetooth", this::openBluetooth), weight());
-        dock.addView(dockIcon(R.drawable.ic_radio, "Radio", this::openRadio), weight());
+        dock.addView(dockIcon(R.drawable.ic_wifi, "WiFi", this::openWifi), weight());
         dock.addView(dockIcon(R.drawable.ic_music, "Música", this::openMusic), weight());
 
         FrameLayout center = new FrameLayout(this);
@@ -846,9 +846,12 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
 
     // ---------- Shortcuts: NWD screens, or the head unit's own apps elsewhere ----------
 
-    private void openRadio() {
-        if (Profile.isNwd(this)) startActivity(new Intent(this, RadioActivity.class));
-        else if (!launchByKeyword("radio", "fm", "tuner")) toast("No se encontró una app de radio");
+    /** Wi-Fi settings: the system screen, or the wireless settings on units without it. */
+    private void openWifi() {
+        if (!safeStart(new Intent(android.provider.Settings.ACTION_WIFI_SETTINGS))
+                && !safeStart(new Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS))) {
+            openSettings();
+        }
     }
 
     private void openBluetooth() {
