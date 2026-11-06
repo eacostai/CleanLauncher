@@ -31,9 +31,9 @@ import java.util.Locale;
 
 /**
  * Home screen: one glass panel with the Kia logo on top. Left: time, greeting and the music
- * playing. Centre: the Sorento on a city highway (headlights on at night or
+ * playing, over a faint live map. Centre: the Sorento (headlights on at night or
  * on touch) and a wide GPS speedometer. Right: weather, today's trip, theme pill and music controls.
- * Icon dock below. City background by day or by night; auto switches at 6 p.m. / car lights.
+ * Icon dock below. Day (light) and night (dark) looks; auto switches at 6 p.m. / car lights.
  */
 public class MainActivity extends Activity implements NowPlaying.Listener {
 
@@ -47,8 +47,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
 
     // Home palette (day or night).
     private boolean dark;
-    private int txt, sub, glass, line;
-    private SceneView scene;
+    private int txt, sub, bgTop, bgBottom, glass, line;
 
     private TextView greeting, nameLine, weatherTemp, weatherDesc, weatherCity, weatherFeels, weatherMinMax,
             weatherHumidity, weatherWind;
@@ -71,6 +70,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
 
     private static final long GPS_STALE_MS = 5000;
     private GaugeView gauge;
+    private MapView map;
     private Location lastGps;
     private long lastGpsAt = -GPS_STALE_MS;
 
@@ -82,13 +82,16 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         dark = Ui.isDark(this);
-        // Light text on the city picture, day and night.
-        txt = 0xFFF4F6F8; sub = 0xFFCDD2DA; glass = 0x0EFFFFFF; line = 0x3CFFFFFF;
+        if (dark) {
+            txt = 0xFFF0F2F5; sub = 0xFF969CA6; bgTop = 0xFF16181C; bgBottom = 0xFF08090B;
+            glass = 0x12FFFFFF; line = 0x28FFFFFF;
+        } else {
+            txt = 0xFF161A20; sub = 0xFF606874; bgTop = 0xFFD6E0EC; bgBottom = 0xFFF0F3F7;
+            glass = 0x8CFFFFFF; line = 0x28000000;
+        }
 
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.BLACK);
-        scene = new SceneView(this, dark);
-        root.addView(scene, new FrameLayout.LayoutParams(-1, -1));
+        root.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, new int[]{bgTop, bgBottom}));
 
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
@@ -143,25 +146,41 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER);
         View l1 = new View(this);
-        l1.setBackgroundColor(0x66FFFFFF);
+        l1.setBackgroundColor(dark ? 0x66FFFFFF : 0x66161A20);
         row.addView(l1, new LinearLayout.LayoutParams(dp(110), dp(1)));
         ImageView logo = new ImageView(this);
         logo.setImageResource(R.drawable.kia_logo);
         logo.setScaleType(ImageView.ScaleType.FIT_CENTER);
-        logo.setColorFilter(Color.WHITE, PorterDuff.Mode.SRC_IN);
+        logo.setColorFilter(dark ? Color.WHITE : txt, PorterDuff.Mode.SRC_IN);
         LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(dp(130), dp(32));
         llp.setMargins(dp(14), 0, dp(14), 0);
         row.addView(logo, llp);
         View l2 = new View(this);
-        l2.setBackgroundColor(0x66FFFFFF);
+        l2.setBackgroundColor(dark ? 0x66FFFFFF : 0x66161A20);
         row.addView(l2, new LinearLayout.LayoutParams(dp(110), dp(1)));
         return row;
     }
 
-    // ---------- Left: time, greeting, music ----------
+    // ---------- Left: time, greeting, music over a faint map ----------
 
     private View buildLeft() {
         FrameLayout col = new FrameLayout(this);
+
+        // Live map in the background, faded into the panel.
+        map = new MapView(this);
+        map.setDark(dark);
+        map.setAlpha(dark ? 0.55f : 0.6f);
+        FrameLayout.LayoutParams mlp = new FrameLayout.LayoutParams(-1, -1);
+        mlp.topMargin = dp(150);
+        mlp.bottomMargin = dp(70);
+        col.addView(map, mlp);
+        int bg = dark ? 0xFF131518 : 0xFFE6ECF3;
+        col.addView(fade(GradientDrawable.Orientation.TOP_BOTTOM, bg, 0),
+                frame(-1, dp(70), Gravity.TOP, dp(150), 0));
+        col.addView(fade(GradientDrawable.Orientation.BOTTOM_TOP, bg, 0),
+                frame(-1, dp(70), Gravity.BOTTOM, 0, dp(70)));
+        col.addView(fade(GradientDrawable.Orientation.RIGHT_LEFT, bg, 0),
+                new FrameLayout.LayoutParams(dp(80), -1, Gravity.END));
 
         LinearLayout top = new LinearLayout(this);
         top.setOrientation(LinearLayout.VERTICAL);
@@ -236,6 +255,19 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         return col;
     }
 
+    private View fade(GradientDrawable.Orientation o, int from, int toAlpha) {
+        View v = new View(this);
+        v.setBackground(new GradientDrawable(o, new int[]{from, (from & 0x00FFFFFF) | (toAlpha << 24)}));
+        return v;
+    }
+
+    private FrameLayout.LayoutParams frame(int w, int h, int gravity, int top, int bottom) {
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(w, h, gravity);
+        lp.topMargin = top;
+        lp.bottomMargin = bottom;
+        return lp;
+    }
+
     private void updateGreeting() {
         int h = Calendar.getInstance().get(Calendar.HOUR_OF_DAY);
         boolean night = h >= 19 || h < 5;
@@ -258,6 +290,12 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
 
         // The user's own car (photo with background removed); headlights glow at night or on touch.
         FrameLayout carArea = new FrameLayout(this);
+        View shadow = new View(this);
+        GradientDrawable sh = new GradientDrawable();
+        sh.setGradientType(GradientDrawable.RADIAL_GRADIENT);
+        sh.setColors(new int[]{dark ? 0xCC000000 : 0x55000000, 0x00000000});
+        shadow.setBackground(sh);
+        carArea.addView(shadow, new FrameLayout.LayoutParams(0, 0));
         FrameLayout carBox = new FrameLayout(this);
         car = new ImageView(this);
         car.setScaleType(ImageView.ScaleType.FIT_CENTER);
@@ -276,7 +314,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
             }
         } else {
             car.setImageResource(R.drawable.ic_car);
-            car.setColorFilter(0x40FFFFFF);
+            car.setColorFilter(dark ? 0x40FFFFFF : 0x40000000);
         }
         carBox.addView(car, new FrameLayout.LayoutParams(-1, -1));
         carBox.addView(carLights, new FrameLayout.LayoutParams(-1, -1));
@@ -295,7 +333,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         model.setLetterSpacing(0.2f);
         carArea.addView(model, new FrameLayout.LayoutParams(-1, -2));
         carArea.addOnLayoutChangeListener((v, l, t, r, b, ol, ot, or, ob) -> {
-            if (r - l != or - ol || b - t != ob - ot) carArea.post(() -> placeCar(carArea, carBox, model));
+            if (r - l != or - ol || b - t != ob - ot) carArea.post(() -> placeCar(carArea, carBox, model, shadow));
         });
         col.addView(carArea, new LinearLayout.LayoutParams(-1, 0, 1f));
 
@@ -328,8 +366,8 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         }
     }
 
-    /** Car as large as fits, the model name just below; the road and shadow are drawn to match. */
-    private void placeCar(FrameLayout area, View carBox, TextView model) {
+    /** Car as large as fits, the model name just below and a soft shadow under the wheels. */
+    private void placeCar(FrameLayout area, View carBox, TextView model, View shadow) {
         int w = area.getWidth(), h = area.getHeight();
         if (w == 0 || h == 0) return;
         android.graphics.drawable.Drawable d = car.getDrawable();
@@ -348,15 +386,15 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         FrameLayout.LayoutParams clp = new FrameLayout.LayoutParams(cw, ch, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
         clp.topMargin = top;
         carBox.setLayoutParams(clp);
+        int sw = Math.round(cw * 0.95f), shh = Math.round(ch * 0.22f);
+        FrameLayout.LayoutParams slp = new FrameLayout.LayoutParams(sw, shh, Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+        slp.topMargin = top + ch - shh * 2 / 3;
+        shadow.setLayoutParams(slp);
+        ((GradientDrawable) shadow.getBackground()).setGradientRadius(sw / 2f);
+        shadow.setScaleY(0.35f);
         FrameLayout.LayoutParams mlp = new FrameLayout.LayoutParams(-1, -2, Gravity.TOP);
         mlp.topMargin = top + ch + gap;
         model.setLayoutParams(mlp);
-        // Tell the background where the car stands so the road runs under its wheels.
-        int[] at = new int[2], sc = new int[2];
-        area.getLocationInWindow(at);
-        scene.getLocationInWindow(sc);
-        float left = at[0] - sc[0] + (w - cw) / 2f, topY = at[1] - sc[1] + top;
-        scene.setCar(left, topY, left + cw, topY + ch);
     }
 
     // ---------- Right: weather, today's trip, theme, music controls ----------
@@ -437,7 +475,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         col.addView(controls);
 
         progress = new LevelBar(this);
-        progress.setTrack(0x33FFFFFF);
+        progress.setTrack(dark ? 0x33FFFFFF : 0x26000000);
         LinearLayout.LayoutParams prl = new LinearLayout.LayoutParams(-1, dp(3));
         prl.topMargin = dp(8);
         col.addView(progress, prl);
@@ -463,7 +501,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         int pad = dp(round ? 13 : 12);
         b.setPadding(pad, pad, pad, pad);
         if (round) {
-            GradientDrawable c = Ui.circle(0x1AFFFFFF);
+            GradientDrawable c = Ui.circle(dark ? 0x1AFFFFFF : 0x14000000);
             c.setStroke(dp(1), sub);
             b.setBackground(c);
         }
@@ -586,7 +624,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
                 iv.setColorFilter(Ui.ACCENT);
             }
             iv.setPadding(dp(5), dp(5), dp(5), dp(5));
-            iv.setBackground(Ui.circle(0x1FFFFFFF));
+            iv.setBackground(Ui.circle(dark ? 0x1FFFFFFF : 0x14000000));
             iv.setContentDescription(a.label);
             Ui.pressable(iv, 0.85f);
             iv.setOnClickListener(v -> MusicApps.play(this, a));
@@ -601,7 +639,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         if (apps.size() > shown) {
             ImageView more = control(R.drawable.ic_apps, false, () -> MusicApps.choose(this, apps));
             more.setPadding(dp(7), dp(7), dp(7), dp(7));
-            more.setBackground(Ui.circle(0x1FFFFFFF));
+            more.setBackground(Ui.circle(dark ? 0x1FFFFFFF : 0x14000000));
             musicApps.addView(more, new LinearLayout.LayoutParams(dp(34), dp(34)));
         }
     }
@@ -668,7 +706,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         }
     };
 
-    // ---------- GPS: speedometer ----------
+    // ---------- GPS: speedometer and map position ----------
 
     private final LocationListener locationListener = new LocationListener() {
         @Override
@@ -688,6 +726,9 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
 
     private void onFix(Location l) {
         boolean gps = LocationManager.GPS_PROVIDER.equals(l.getProvider());
+        // A recent GPS fix wins over the coarse network position for the map.
+        if (!gps && SystemClock.elapsedRealtime() - lastGpsAt < GPS_STALE_MS) return;
+        map.setLocation(l);
         if (!gps) return;
         float kmh;
         if (l.hasSpeed()) {
@@ -701,6 +742,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         lastGps = l;
         lastGpsAt = SystemClock.elapsedRealtime();
         gauge.setSpeed(kmh);
+        map.setSpeed(kmh);
     }
 
     private final Runnable gpsWatch = new Runnable() {
@@ -736,9 +778,20 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
     private void startLocation() {
         if (checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED) return;
         LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+        Location last = null;
+        for (String p : lm.getAllProviders()) {
+            try {
+                Location l = lm.getLastKnownLocation(p);
+                if (l != null && (last == null || l.getTime() > last.getTime())) last = l;
+            } catch (SecurityException ignored) { }
+        }
+        if (last != null) map.setLocation(last);
         try {
             lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1000, 0, locationListener);
         } catch (Exception ignored) { } // no GPS receiver
+        try {
+            lm.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 10_000, 0, locationListener);
+        } catch (Exception ignored) { }
         handler.post(gpsWatch);
     }
 
@@ -755,7 +808,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         dock.setBackground(glassBg(18));
         dock.addView(dockIcon(R.drawable.ic_compass, "Mapa", this::openMaps), weight());
         dock.addView(dockIcon(R.drawable.ic_bluetooth, "Bluetooth", this::openBluetooth), weight());
-        dock.addView(dockIcon(R.drawable.ic_wifi, "WiFi", this::openWifi), weight());
+        dock.addView(dockIcon(R.drawable.ic_radio, "Radio", this::openRadio), weight());
         dock.addView(dockIcon(R.drawable.ic_music, "Música", this::openMusic), weight());
 
         FrameLayout center = new FrameLayout(this);
@@ -778,7 +831,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         FrameLayout f = new FrameLayout(this);
         ImageView iv = new ImageView(this);
         iv.setImageResource(icon);
-        iv.setColorFilter(0xE6FFFFFF);
+        iv.setColorFilter(dark ? 0xE6FFFFFF : 0xE6161A20);
         iv.setContentDescription(name);
         iv.setPadding(dp(12), dp(12), dp(12), dp(12));
         f.addView(iv, new FrameLayout.LayoutParams(dp(52), dp(52), Gravity.CENTER));
@@ -793,12 +846,9 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
 
     // ---------- Shortcuts: NWD screens, or the head unit's own apps elsewhere ----------
 
-    /** Wi-Fi settings: the system screen, or the wireless settings on units without it. */
-    private void openWifi() {
-        if (!safeStart(new Intent(android.provider.Settings.ACTION_WIFI_SETTINGS))
-                && !safeStart(new Intent(android.provider.Settings.ACTION_WIRELESS_SETTINGS))) {
-            openSettings();
-        }
+    private void openRadio() {
+        if (Profile.isNwd(this)) startActivity(new Intent(this, RadioActivity.class));
+        else if (!launchByKeyword("radio", "fm", "tuner")) toast("No se encontró una app de radio");
     }
 
     private void openBluetooth() {
@@ -893,6 +943,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         }
         handler.post(periodic);
         startLocation();
+        map.onResume();
         nowPlaying.addListener(this);
         onNowPlayingChanged();
         handler.post(progressTick);
@@ -906,6 +957,7 @@ public class MainActivity extends Activity implements NowPlaying.Listener {
         handler.removeCallbacks(periodic);
         stopLocation();
         handler.removeCallbacks(progressTick);
+        map.onPause();
         nowPlaying.removeListener(this);
     }
 
