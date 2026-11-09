@@ -30,7 +30,7 @@ public class MapView extends FrameLayout {
     private Location shown;
     private long shownAt;
     private int zoom = 16;
-    private boolean dark;
+    private boolean dark, faded;
 
     public MapView(Context c) {
         super(c);
@@ -81,9 +81,13 @@ public class MapView extends FrameLayout {
                 "https://www.google.com/maps?q=%.6f,%.6f&z=%d&hl=es&output=embed",
                 l.getLatitude(), l.getLongitude(), zoom);
         String html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">"
-                + "<style>html,body{margin:0;height:100%;background:" + (dark ? "#121417" : "#E8EEF4") + "}"
+                + "<style>html,body{margin:0;height:100%;background:"
+                + (faded ? "transparent" : dark ? "#121417" : "#E8EEF4") + "}"
                 + "iframe{border:0;width:100%;height:100%;display:block"
-                + (dark ? ";filter:invert(.92) hue-rotate(180deg) saturate(.6)" : "") + "}</style></head>"
+                + (dark ? ";filter:invert(.92) hue-rotate(180deg) saturate(.6)" : "")
+                + (faded ? ";-webkit-mask-image:radial-gradient(ellipse 50% 50% at 50% 50%,#000 35%,transparent 100%)"
+                        + ";mask-image:radial-gradient(ellipse 50% 50% at 50% 50%,#000 35%,transparent 100%)" : "")
+                + "}</style></head>"
                 + "<body><iframe src=\"" + src + "\" allowfullscreen></iframe></body></html>";
         web.loadDataWithBaseURL("https://www.google.com/", html, "text/html", "utf-8", null);
     }
@@ -91,9 +95,22 @@ public class MapView extends FrameLayout {
     /** Night look: the map is shown with inverted colours (dark streets) to match the theme. */
     void setDark(boolean d) {
         dark = d;
+        if (faded) return;
         int bg = d ? 0xFF121417 : 0xFFE8EEF4;
         setBackgroundColor(bg);
         web.setBackgroundColor(bg);
+    }
+
+    /**
+     * Background look: no frame or backdrop, the map's edges fade out into whatever is behind it,
+     * and the status line is small text in the given colour.
+     */
+    void setFaded(int textColor) {
+        faded = true;
+        setBackgroundColor(0);
+        web.setBackgroundColor(0);
+        status.setTextColor(textColor);
+        status.setTextSize(10);
     }
 
     /** Zooms out a little on the highway so more of the road ahead is visible. */
