@@ -28,6 +28,7 @@ public class Odometer extends Service implements LocationListener {
     private LocationManager lm;
     private Location last;
     private float pendingMeters;
+    private float pendingDayMeters, pendingMovingSecs;
 
     @Override
     public void onCreate() {
@@ -56,13 +57,22 @@ public class Odometer extends Service implements LocationListener {
             float kmh = d / secs * 3.6f;
             boolean moving = (l.hasSpeed() ? l.getSpeed() * 3.6f : kmh) > 4;
             // Count only real driving; drop parked drift and impossible jumps.
-            if (moving && kmh < 200) pendingMeters += d;
+            if (moving && kmh < 200) {
+                pendingMeters += d;
+                pendingDayMeters += d;
+                pendingMovingSecs += Math.min(secs, 30);
+                if (l.hasSpeed()) noteMaxSpeed(this, l.getSpeed() * 3.6f);
+            }
         }
         last = l;
         if (pendingMeters >= 100) { // persist every 100 m
             SharedPreferences p = prefs(this);
-            p.edit().putFloat("gps_km", p.getFloat("gps_km", 0) + pendingMeters / 1000f).apply();
-            pendingMeters = 0;
+            rollDay(this);
+            p.edit().putFloat("gps_km", p.getFloat("gps_km", 0) + pendingMeters / 1000f)
+                    .putFloat("day_km", p.getFloat("day_km", 0) + pendingDayMeters / 1000f)
+                    .putFloat("day_moving_s", p.getFloat("day_moving_s", 0) + pendingMovingSecs)
+                    .apply();
+            pendingMeters = pendingDayMeters = pendingMovingSecs = 0;
         }
     }
 
@@ -115,6 +125,46 @@ public class Odometer extends Service implements LocationListener {
 
     static void setIntervalKm(Context c, int km) {
         prefs(c).edit().putInt("interval_km", km).apply();
+    }
+
+    // ---------- Today's trip (reset at midnight) ----------
+
+    private static String today() {
+        return new java.text.SimpleDateFormat("yyyyMMdd", java.util.Locale.US).format(new java.util.Date());
+    }
+
+    private static void rollDay(Context c) {
+        SharedPreferences p = prefs(c);
+        String t = today();
+        if (!t.equals(p.getString("day", ""))) {
+            p.edit().putString("day", t).putFloat("day_km", 0).putFloat("day_moving_s", 0)
+                    .putFloat("day_max_kmh", 0).apply();
+        }
+    }
+
+    /** Km driven today. */
+    static float todayKm(Context c) {
+        rollDay(c);
+        return prefs(c).getFloat("day_km", 0);
+    }
+
+    /** Minutes in motion today. */
+    static int todayMovingMinutes(Context c) {
+        rollDay(c);
+        return Math.round(prefs(c).getFloat("day_moving_s", 0) / 60f);
+    }
+
+    /** Top speed today (km/h). */
+    static float todayMaxKmh(Context c) {
+        rollDay(c);
+        return prefs(c).getFloat("day_max_kmh", 0);
+    }
+
+    static void noteMaxSpeed(Context c, float kmh) {
+        if (kmh > 200) return; // GPS glitch
+        rollDay(c);
+        SharedPreferences p = prefs(c);
+        if (kmh > p.getFloat("day_max_kmh", 0)) p.edit().putFloat("day_max_kmh", kmh).apply();
     }
 
     /** Km left until the next oil change (negative when overdue). */

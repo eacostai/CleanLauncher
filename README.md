@@ -17,7 +17,7 @@ que se comunica directamente con los servicios propietarios del radio.
 - **Modo pantalla apagada** que sigue respondiendo a los botones del volante.
 - **Control de aceite / odómetro** con recordatorios de mantenimiento.
 - **GreeterService**: saludo por voz al encender (voz Salomé, es-CO), avisos de cinturón,
-  clima, mantenimiento los lunes y *pico y placa* de Quito. Restaura la fuente de audio
+  clima y mantenimiento los lunes. Restaura la fuente de audio
   (radio o BT) al dar contacto.
 - **Ecualizador** con balance/fader y ajuste automático por fuente.
 - **Dispositivos Bluetooth**: lista de emparejados y conexión.

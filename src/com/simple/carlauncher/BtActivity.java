@@ -78,7 +78,7 @@ public class BtActivity extends Activity implements NowPlaying.Listener {
     private View buildMusic() {
         FrameLayout card = new FrameLayout(this);
         GradientDrawable bg = new GradientDrawable(GradientDrawable.Orientation.TL_BR,
-                Ui.pick(this, new int[]{0xFF2E6BFF, 0xFF6A3BFF, 0xFFB04CE8}, new int[]{0xFF1F2A55, 0xFF1A1235, 0xFF0B0B10}));
+                Ui.pick(this, new int[]{0xFF2E6BFF, 0xFF6A3BFF, 0xFFB04CE8}, new int[]{Ui.ACCENT_DEEP, Ui.PANEL, Ui.PANEL}));
         bg.setCornerRadius(dp(18));
         card.setBackground(bg);
 

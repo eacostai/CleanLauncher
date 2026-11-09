@@ -272,7 +272,7 @@ public class EqActivity extends Activity {
         bg.setCornerRadius(dp(18));
         if (on) {
             bg.setOrientation(GradientDrawable.Orientation.LEFT_RIGHT);
-            bg.setColors(new int[]{0xFF2EB8FF, 0xFF8A4DFF});
+            bg.setColors(new int[]{Ui.ACCENT_LIGHT, Ui.ACCENT});
         } else {
             bg.setColor(0x26FFFFFF);
         }
